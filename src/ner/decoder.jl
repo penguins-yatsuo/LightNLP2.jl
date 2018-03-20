@@ -70,11 +70,6 @@ function Decoder(config::Dict)
             s = batches[i]
             z = nn(s, true)
             loss += sum(z.data)
-
-            println(typeof(z.args[1]))
-            println(typeof(z.args[2]))
-            println(typeof(z.args[3]))
-
             params = gradient!(z)
             foreach(opt, params)
             ProgressMeter.next!(prog)
