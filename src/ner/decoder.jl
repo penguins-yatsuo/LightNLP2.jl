@@ -25,7 +25,14 @@ function create_batch(samples::Vector{Sample}, batchsize::Int)
         batchdims_w = cat(1, map(x -> x.batchdims_w, s)...)
         batchdims_c = cat(1, map(x -> x.batchdims_c, s)...)
         t = s[1].t == nothing ? nothing : cat(1, map(x -> x.t, s)...)
-        push!(batches, Sample(w,batchdims_w,c,batchdims_c,t))
+
+        w = BACKEND(w)
+        batchdims_w = sort(batchdims_w, rev=true)
+        c = BACKEND(c)
+        batchdims_c = BACKEND(batchdims_c)
+        t = BACKEND(t)
+
+        push!(batches, Sample(w, batchdims_w, c, batchdims_c, t))
     end
     batches
 end
@@ -63,6 +70,11 @@ function Decoder(config::Dict)
             s = batches[i]
             z = nn(s, true)
             loss += sum(z.data)
+
+            println(typeof(z.args[1]))
+            println(typeof(z.args[2]))
+            println(typeof(z.args[3]))
+
             params = gradient!(z)
             foreach(opt, params)
             ProgressMeter.next!(prog)

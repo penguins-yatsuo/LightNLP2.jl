@@ -1,3 +1,5 @@
+using LibCUDA
+
 struct NN
     g
 end
@@ -8,22 +10,20 @@ function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int) where T
 
     embeds_c = zerograd(embeds_c)
     c = lookup(Node(embeds_c), Node(name="c"))
-    c = dropout(c, 0.5)
     batchdims_c = Node(name="batchdims_c")
     c = window1d(c, 2, batchdims_c)
     csize = size(embeds_c, 1)
-    c = Linear(T,5csize,5csize)(c)
+    c = Linear(T, 5csize, 5csize)(c)
     c = maximum(c, 2, batchdims_c)
 
     h = concat(1, w, c)
-    h = dropout(h, 0.5)
     batchdims_w = Node(name="batchdims_w")
-    hsize = size(embeds_w,1) + 5csize
-    h = LSTM(T,hsize,hsize,1,0.0,true)(h,batchdims_w)
-    h = dropout(h, 0.5)
+    hsize = size(embeds_w, 1) + 5csize
+    h = LSTM(T, hsize, hsize, 1, 0.5, true)(h, batchdims_w)
 
     h = Linear(T,2hsize,ntags)(h)
-    NN(Graph(h))
+    g = BACKEND(Graph(h))
+    NN(g)
 end
 
 function (nn::NN)(x::Sample, train::Bool)
