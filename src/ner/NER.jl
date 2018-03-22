@@ -4,7 +4,7 @@ using Merlin
 using ProgressMeter
 using HDF5
 
-const BACKEND = CUDABackend()
+const BACKEND = CPUBackend()
 
 include("BIOES.jl")
 include("decoder.jl")
