@@ -45,9 +45,12 @@ function Decoder(config::Dict)
     charembeds = Normal(0,0.01)(Float32, 20, length(chardict))
     traindata = readdata(config["train_file"], worddict, chardict, tagdict)
     testdata = readdata(config["test_file"], worddict, chardict, tagdict)
-    winsize = haskey(config, "window_size"]) ? conifg["window_size"] : 5  
-    dropout = haskey(config, "dropout"]) ? conifg["dropout"] : 5 
-    nn = NN(wordembeds, charembeds, length(tagdict); winsize=10, dropout=0.2)
+    nlayers = haskey(config, "nlayers") ? conifg["nlayers"] : 1
+    droprate = haskey(config, "droprate") ? conifg["droprate"] : 0.2 
+    bidirectional = haskey(config, "bidirectional") ? conifg["bidirectional"] : true
+
+    nn = NN(wordembeds, charembeds, length(tagdict); 
+            nlayers=nlayers, droprate=droprate, bidirectional=bidirectional)
 
     info("#Training examples:\t$(length(traindata))")
     info("#Testing examples:\t$(length(testdata))")

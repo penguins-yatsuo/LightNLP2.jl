@@ -4,7 +4,9 @@ struct NN
     g
 end
 
-function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int) where T
+function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int; 
+            nlayers::Int=2, winsize_c::Int=2, winsize_w::Int=5, droprate::Float64=0.1) where T
+
     embeds_w = zerograd(embeds_w)
     w = lookup(Node(embeds_w), Node(name="w"))
 
@@ -13,32 +15,26 @@ function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int) where T
     embeds_c = zerograd(embeds_c)
     c = lookup(Node(embeds_c), Node(name="c"))
     batchdims_c = Node(name="batchdims_c")
-    c = window1d(c, 2, batchdims_c)
+    c = window1d(c, winsize_c, batchdims_c)
 
-    csize = size(embeds_c, 1)
-    c = Linear(T, wsize, wsize)(c)
+    csize = (winsize_c * 2 + 1) * size(embeds_c, 1)
+    c = Linear(T, csize, csize)(c)
     c = maximum(c, 2, batchdims_c)
 
     h = concat(1, w, c)
     batchdims_w = Node(name="batchdims_w")
 
-    vsize = 2wsize
-    winsize = 5
-    hsize = (winsize * 2 + 1) * vsize
+    hsize = wsize + csize
+    wsize = (winsize_w * 2 + 1) * hsize
 
-    droprate::Float64 = 0.2 
+    for i in 1:nlayers
+        h = Node(window1d, h, winsize_w, batchdims_w)
+        h = Node(dropout, h, droprate)
+        h = Linear(T, wsize, hsize)(h)
+        h = relu(h)    
+    end
 
-    h = window1d(h, winsize, batchdims_w)
-    h = dropout(h, droprate)
-    h = Linear(T, hsize, vsize)(h)
-    h = relu(h)
-
-    # h = window1d(h, 5, batchdims_w)
-    h = dropout(h, droprate)
-    h = Linear(T, vsize, vsize)(h)
-    h = relu(h)
-
-    h = Linear(T, vsize, ntags)(h)
+    h = Linear(T, hsize, ntags)(h)
     g = BACKEND(Graph(h))
 
     NN(g)
