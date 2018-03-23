@@ -22,19 +22,23 @@ function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int) where T
     h = concat(1, w, c)
     batchdims_w = Node(name="batchdims_w")
 
-    hsize = (5 * 2 + 1) * 2wsize
+    vsize = 2wsize
+    winsize = 5
+    hsize = (winsize * 2 + 1) * vsize
 
-    h = window1d(h, 5, batchdims_w)
-    h = dropout(h, 0.3)
-    h = Linear(T, hsize, 2wsize)(h)
+    droprate::Float64 = 0.2 
+
+    h = window1d(h, winsize, batchdims_w)
+    h = dropout(h, droprate)
+    h = Linear(T, hsize, vsize)(h)
     h = relu(h)
 
     # h = window1d(h, 5, batchdims_w)
-    h = dropout(h, 0.3)
-    h = Linear(T, 2wsize, 2wsize)(h)
+    h = dropout(h, droprate)
+    h = Linear(T, vsize, vsize)(h)
     h = relu(h)
 
-    h = Linear(T, 2wsize, ntags)(h)
+    h = Linear(T, vsize, ntags)(h)
     g = BACKEND(Graph(h))
 
     NN(g)

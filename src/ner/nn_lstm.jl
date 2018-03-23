@@ -1,4 +1,3 @@
-using LibCUDA
 
 struct NN
     g
