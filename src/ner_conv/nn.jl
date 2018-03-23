@@ -25,14 +25,14 @@ function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int) where T
     hsize = (5 * 2 + 1) * 2wsize
 
     h = window1d(h, 5, batchdims_w)
-    # h = dropout(h, 0.3)
+    h = dropout(h, 0.3)
     h = Linear(T, hsize, 2wsize)(h)
     h = relu(h)
 
     # h = window1d(h, 5, batchdims_w)
-    # h = dropout(h, 0.3)
-    # h = Linear(T, hsize, 2wsize)(h)
-    # h = relu(h)
+    h = dropout(h, 0.3)
+    h = Linear(T, 2wsize, 2wsize)(h)
+    h = relu(h)
 
     h = Linear(T, 2wsize, ntags)(h)
     g = BACKEND(Graph(h))
@@ -43,6 +43,7 @@ end
 function (nn::NN)(x::Sample, train::Bool)
     Merlin.CONFIG.train = train
     z = nn.g(x.batchdims_c, x.batchdims_w, Var(x.c), Var(x.w))
+    #z = nn.g(x.batchdims_c, Var(x.c), Var(x.w))
     if train
         softmax_crossentropy(Var(x.t), z)
     else
