@@ -8,6 +8,6 @@ const BACKEND = CPUBackend()
 
 include("BIOES.jl")
 include("decoder.jl")
-include("nn_lstm.jl")
+include("nn.jl")
 
 end

@@ -45,7 +45,9 @@ function Decoder(config::Dict)
     charembeds = Normal(0,0.01)(Float32, 20, length(chardict))
     traindata = readdata(config["train_file"], worddict, chardict, tagdict)
     testdata = readdata(config["test_file"], worddict, chardict, tagdict)
-    nn = NN(wordembeds, charembeds, length(tagdict))
+    winsize = haskey(config, "window_size"]) ? conifg["window_size"] : 5  
+    dropout = haskey(config, "dropout"]) ? conifg["dropout"] : 5 
+    nn = NN(wordembeds, charembeds, length(tagdict); winsize=10, dropout=0.2)
 
     info("#Training examples:\t$(length(traindata))")
     info("#Testing examples:\t$(length(testdata))")
