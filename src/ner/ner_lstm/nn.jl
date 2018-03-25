@@ -4,8 +4,8 @@ struct NN
 end
 
 function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int;
-            nlayer::Int=1, winsize_c::Int=2, droprate::Int=0.2, bidirectional::Bool=true) where T
-            
+            nlayers::Int=1, winsize_c::Int=2, droprate::Float64=0.2, bidirectional::Bool=true) where T
+
     embeds_w = zerograd(embeds_w)
     w = lookup(Node(embeds_w), Node(name="w"))
 
@@ -21,6 +21,7 @@ function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int;
     h = concat(1, w, c)
     batchdims_w = Node(name="batchdims_w")
     hsize = size(embeds_w, 1) + csize
+    
     h = LSTM(T, hsize, hsize, nlayers, droprate, bidirectional)(h, batchdims_w)
 
     h = Linear(T, 2hsize, ntags)(h)

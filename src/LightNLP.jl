@@ -2,7 +2,7 @@ module LightNLP
 
 include("intdict.jl")
 include("depparser/DepParser.jl")
-include("ner_conv/NER.jl")
+include("ner/NER.jl")
 include("tokenization/Tokenization.jl")
 
 end

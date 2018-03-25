@@ -15,6 +15,10 @@ struct Sample
     t
 end
 
+macro timestamp()
+    return :( Dates.format(now(), "yyyy-mm-ddTHH:MM:SS") )
+end
+
 function create_batch(samples::Vector{Sample}, batchsize::Int)
     batches = Sample[]
     for i = 1:batchsize:length(samples)
@@ -37,7 +41,7 @@ function create_batch(samples::Vector{Sample}, batchsize::Int)
     batches
 end
 
-function Decoder(config::Dict)
+function Decoder(config::Dict, flog::IOStream)
     words = h5read(config["wordvec_file"], "words")
     wordembeds = h5read(config["wordvec_file"], "vectors")
     worddict = Dict(words[i] => i for i=1:length(words))
@@ -45,19 +49,29 @@ function Decoder(config::Dict)
     charembeds = Normal(0,0.01)(Float32, 20, length(chardict))
     traindata = readdata(config["train_file"], worddict, chardict, tagdict)
     testdata = readdata(config["test_file"], worddict, chardict, tagdict)
-    nlayers = haskey(config, "nlayers") ? conifg["nlayers"] : 1
-    droprate = haskey(config, "droprate") ? conifg["droprate"] : 0.2 
-    bidirectional = haskey(config, "bidirectional") ? conifg["bidirectional"] : true
+    nepochs = haskey(config, "nepochs") ? config["nepochs"] : 1
+    nlayers = haskey(config, "nlayers") ? config["nlayers"] : 1
+    winsize_c = haskey(config, "winsize_c") ? config["winsize_c"] : 2
+    droprate = haskey(config, "droprate") ? config["droprate"] : 0.2 
+    bidirectional = haskey(config, "bidirectional") ? config["bidirectional"] : true
+
+    procname = @sprintf("NER.Lstm[%s]", haskey(config, "jobid") ? config["jobid"] : "-")
+    @printf(flog, "%s %s training  | train:%d test:%d words:%d, chars:%d tags:%d\n", @timestamp, procname, 
+            length(traindata), length(testdata), length(worddict), length(chardict), length(tagdict))
+    @printf(flog, "%s %s arguments | nepochs:%d, nlayers:%d droprate:%f winsize_c:%d bidirectional:%s\n", @timestamp, procname, 
+            nepochs, nlayers, droprate, winsize_c, bidirectional)
+    flush(flog)
 
     nn = NN(wordembeds, charembeds, length(tagdict); 
-            nlayers=nlayers, droprate=droprate, bidirectional=bidirectional)
+            nlayers=nlayers, winsize_c=winsize_c, droprate=droprate, bidirectional=bidirectional)
 
     info("#Training examples:\t$(length(traindata))")
     info("#Testing examples:\t$(length(testdata))")
     info("#Words1:\t$(length(worddict))")
     info("#Chars:\t$(length(chardict))")
     info("#Tags:\t$(length(tagdict))")
-    testdata = create_batch(testdata, 100)
+
+    testdata = create_batch(testdata, length(testdata))
 
     opt = SGD()
     batchsize = config["batchsize"]
@@ -66,6 +80,10 @@ function Decoder(config::Dict)
         #opt.rate = LEARN_RATE / BATCHSIZE
         opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
         println("Learning rate: $(opt.rate)")
+
+        @printf(flog, "%s %s begin epoch % 3d | learnrate:%.5f\n", @timestamp, procname, 
+                epoch, opt.rate)
+        flush(flog)
 
         shuffle!(traindata)
         batches = create_batch(traindata, batchsize)
@@ -95,9 +113,16 @@ function Decoder(config::Dict)
 
         preds = BIOES.decode(preds, tagdict)
         golds = BIOES.decode(golds, tagdict)
-        fscore(golds, preds)
+
+        prec, recall, fval = fscore(golds, preds)
+
+        @printf(flog, "%s %s   end epoch % 3d | loss:%.4e fval:%.5f prec:%.5f recall:%.5f)\n", @timestamp, procname, 
+                epoch, loss, fval, prec, recall)
+        flush(flog)
+
         println()
     end
+
     Decoder(worddict, chardict, tagdict, nn)
 end
 
