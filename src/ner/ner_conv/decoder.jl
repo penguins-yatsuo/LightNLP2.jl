@@ -159,6 +159,30 @@ function initvocab(path::String)
     chardict, tagdict
 end
 
+function decode(dec::Decoder, config::Dict)
+    testdata = readdata(config["test_file"], dec.worddict, dec.chardict, dec.tagdict)
+    testdata = create_batch(testdata, length(testdata))
+    id2tag = Array{String}(length(dec.tagdict))
+    for (k, v) in dec.tagdict
+        id2tag[v] = k
+    end
+
+    preds = Int[]
+    for x in testdata
+        y = dec.nn(x, false)
+        append!(preds, y)
+    end
+
+    lines = open(readlines, config["test_file"])
+    i = 1
+    for line in lines
+        isempty(line) && continue
+        tag = id2tag[preds[i]]
+        println("$line\t$tag")
+        i += 1
+    end
+end
+
 function readdata(path::String, worddict::Dict, chardict::Dict, tagdict::Dict)
     samples = Sample[]
     words, tags = String[], String[]
