@@ -15,8 +15,8 @@ struct Sample
     t
 end
 
-macro timestamp()
-    return :( Dates.format(now(), "yyyy-mm-ddTHH:MM:SS") )
+macro logtime()
+    return :( Dates.format(now(), "yyyy-mm-dd HH:MM:SS") )
 end
 
 function create_batch(samples::Vector{Sample}, batchsize::Int)
@@ -41,7 +41,7 @@ function create_batch(samples::Vector{Sample}, batchsize::Int)
     batches
 end
 
-function Decoder(config::Dict, flog::IOStream)
+function Decoder(config::Dict, iolog)
     words = h5read(config["wordvec_file"], "words")
     wordembeds = h5read(config["wordvec_file"], "vectors")
     worddict = Dict(words[i] => i for i=1:length(words))
@@ -56,11 +56,11 @@ function Decoder(config::Dict, flog::IOStream)
     droprate = haskey(config, "droprate") ? config["droprate"] : 0.2 
 
     procname = @sprintf("NER.Convolution[%s]", haskey(config, "jobid") ? config["jobid"] : "-")
-    @printf(flog, "%s %s training  | train:%d test:%d words:%d, chars:%d tags:%d\n", @timestamp, procname, 
+    @printf(iolog, "%s %s training - train:%d test:%d words:%d, chars:%d tags:%d\n", @logtime, procname, 
             length(traindata), length(testdata), length(worddict), length(chardict), length(tagdict))
-    @printf(flog, "%s %s arguments | nepochs:%d, nlayers:%d droprate:%f winsize_c:%d winsize_w:%d\n", @timestamp, procname, 
+    @printf(iolog, "%s %s arguments - nepochs:%d, nlayers:%d droprate:%f winsize_c:%d winsize_w:%d\n", @logtime, procname, 
             nepochs, nlayers, droprate, winsize_c, winsize_w)
-    flush(flog)
+    flush(iolog)
 
     nn = NN(wordembeds, charembeds, length(tagdict); 
             nlayers=nlayers, winsize_c=winsize_c, winsize_w=winsize_w, droprate=droprate)
@@ -82,9 +82,9 @@ function Decoder(config::Dict, flog::IOStream)
         opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
         println("Learning rate: $(opt.rate)")
 
-        @printf(flog, "%s %s begin epoch % 3d | learnrate:%.5f\n", @timestamp, procname, 
+        @printf(iolog, "%s %s begin epoch %d - learnrate:%.5f\n", @logtime, procname, 
                 epoch, opt.rate)
-        flush(flog)
+        flush(iolog)
 
         shuffle!(traindata)
         batches = create_batch(traindata, batchsize)
@@ -116,13 +116,13 @@ function Decoder(config::Dict, flog::IOStream)
         golds = BIOES.decode(golds, tagdict)
         prec, recall, fval = fscore(golds, preds)
 
-        @printf(flog, "%s %s   end epoch % 3d | loss:%.4e fval:%.5f prec:%.5f recall:%.5f)\n", @timestamp, procname, 
+        @printf(iolog, "%s %s end epoch %d - loss:%.4e fval:%.5f prec:%.5f recall:%.5f)\n", @logtime, procname, 
                 epoch, loss, fval, prec, recall)
-        flush(flog)
+        flush(iolog)
         println()
     end
 
-    @printf(flog, "%s %s training complete\n", @timestamp, procname)
+    @printf(iolog, "%s %s training complete\n", @logtime, procname)
 
     Decoder(worddict, chardict, tagdict, nn)
 end
