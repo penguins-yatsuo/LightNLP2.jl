@@ -43,7 +43,7 @@ end
 function (nn::NN)(x::Sample, train::Bool)
     Merlin.CONFIG.train = train
     z = nn.g(x.batchdims_c, x.batchdims_w, Var(x.c), Var(x.w))
-    #z = nn.g(x.batchdims_c, Var(x.c), Var(x.w))
+    # z = nn.g(x.batchdims_c, Var(x.c), Var(x.w))
     if train
         softmax_crossentropy(Var(x.t), z)
     else

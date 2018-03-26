@@ -116,7 +116,7 @@ function Decoder(config::Dict, iolog)
         golds = BIOES.decode(golds, tagdict)
         prec, recall, fval = fscore(golds, preds)
 
-        @printf(iolog, "%s %s end epoch %d - loss:%.4e fval:%.5f prec:%.5f recall:%.5f)\n", @logtime, procname, 
+        @printf(iolog, "%s %s end epoch %d - loss:%.4e fval:%.5f prec:%.5f recall:%.5f\n", @logtime, procname, 
                 epoch, loss, fval, prec, recall)
         flush(iolog)
         println()
