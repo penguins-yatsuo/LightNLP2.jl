@@ -75,7 +75,7 @@ function Decoder(config::Dict, iolog)
     testdata = create_batch(testdata, batchsize)
 
     opt = SGD()
-    for epoch = 1:config["nepochs"]
+    for epoch = 1:nepochs
         println("Epoch:\t$epoch")
         #opt.rate = LEARN_RATE / BATCHSIZE
         opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
@@ -122,6 +122,8 @@ function Decoder(config::Dict, iolog)
 
         println()
     end
+
+    @printf(iolog, "%s %s training complete\n", @logtime, procname)
 
     Decoder(worddict, chardict, tagdict, nn)
 end

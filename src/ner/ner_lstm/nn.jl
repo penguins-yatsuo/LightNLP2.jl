@@ -4,7 +4,7 @@ struct NN
 end
 
 function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int;
-            nlayers::Int=1, winsize_c::Int=2, droprate::Float64=0.2, bidirectional::Bool=true) where T
+            nlayers::Int=1, winsize_c::Int=2, droprate::Float64=0.1, bidirectional::Bool=true) where T
 
     embeds_w = zerograd(embeds_w)
     w = lookup(Node(embeds_w), Node(name="w"))
