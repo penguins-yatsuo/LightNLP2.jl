@@ -71,10 +71,10 @@ function Decoder(config::Dict, iolog)
     info("#Chars:\t$(length(chardict))")
     info("#Tags:\t$(length(tagdict))")
 
-    testdata = create_batch(testdata, length(testdata))
+    batchsize = config["batchsize"]
+    testdata = create_batch(testdata, batchsize)
 
     opt = SGD()
-    batchsize = config["batchsize"]
     for epoch = 1:config["nepochs"]
         println("Epoch:\t$epoch")
         #opt.rate = LEARN_RATE / BATCHSIZE
@@ -160,7 +160,7 @@ end
 
 function decode(dec::Decoder, config::Dict)
     testdata = readdata(config["test_file"], dec.worddict, dec.chardict, dec.tagdict)
-    testdata = create_batch(testdata, length(testdata))
+    testdata = create_batch(testdata, 10)
     id2tag = Array{String}(length(dec.tagdict))
     for (k, v) in dec.tagdict
         id2tag[v] = k
@@ -240,4 +240,5 @@ function fscore(golds::Vector{T}, preds::Vector{T}) where T
     println("Prec:\t$prec")
     println("Recall:\t$recall")
     println("Fscore:\t$fval")
+    prec, recall, fval
 end
