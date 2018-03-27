@@ -177,10 +177,13 @@ function decode(dec::Decoder, config::Dict)
     lines = open(readlines, config["test_file"])
     i = 1
     for line in lines
-        isempty(line) && continue
-        tag = id2tag[preds[i]]
-        println("$line\t$tag")
-        i += 1
+        if !isempty(strip(line))
+            tag = id2tag[preds[i]]
+            println("$line\t$tag")
+            i += 1
+        else
+            println("")            
+        end
     end
 end
 
