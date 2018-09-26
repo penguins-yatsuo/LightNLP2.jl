@@ -1,7 +1,7 @@
 module BIOES
 
 function decode(ids::Vector{Int}, tagdict::Dict{String,Int})
-    id2tag = Array{String}(length(tagdict))
+    id2tag = Array{String, 1}(undef, length(tagdict))
     for (k,v) in tagdict
         id2tag[v] = k
     end

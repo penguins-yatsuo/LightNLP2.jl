@@ -1,5 +1,7 @@
 export decode
 
+using Printf, Dates
+
 mutable struct Decoder
     worddict::Dict
     chardict::Dict
@@ -92,7 +94,7 @@ function Decoder(config::Dict, iolog)
         for i in 1:length(batches)
             s = batches[i]
             z = nn(s, true)
-            loss += sum(z.data)
+            loss += sum(z.data, dims=1)
             params = gradient!(z)
             foreach(opt, params)
             ProgressMeter.next!(prog)
