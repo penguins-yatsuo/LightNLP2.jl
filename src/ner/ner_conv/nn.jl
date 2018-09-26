@@ -45,7 +45,7 @@ function (nn::NN)(::Type{T}, x::Sample, train::Bool) where T
         println("maxidx", string(size(maxidx)), string(maxidx))
 
         for i in 1:sum(x.batchdims_w)
-            println(maxval[i], maxidx[i], view(pred.data, i, 1:5))
+            println(maxidx[i], ", ", maxval[i], ", ", view(pred.data, 1:5, i))
         end
         
         argmaxidx = cat(dims=1, map(cart -> cart.I[1], maxidx)...)
