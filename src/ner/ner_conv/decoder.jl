@@ -87,6 +87,7 @@ function Decoder(config::Dict, iolog)
     batchsize = config["batchsize"]
     test_batches = create_batch(testdata, batchsize)
 
+    setcuda(0)
     opt = SGD()
     for epoch = 1:nepochs
         println("Epoch:\t$epoch")
