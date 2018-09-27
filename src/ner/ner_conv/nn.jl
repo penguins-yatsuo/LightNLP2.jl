@@ -15,56 +15,58 @@ function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int;
     NN(embeds_w, embeds_c, ntags, nlayers, winsize_c, winsize_w, droprate)
 end
 
+function char_conv(::Type{T}, c::Var, dims::Var, outsize::Int, window::Int) where T
+
+    insize = size(c.data, 1)
+    pad = Int((window - 1) / 2)
+
+    h = Conv1d(T, window, insize, outsize, padding=pad)(c, dims)
+    h = max(h, dims)
+
+    h 
+end
+
 function (nn::NN)(::Type{T}, x::Sample, train::Bool) where T
     settrain(train)    
 
-    c = param(lookup(nn.embeds_c, x.c); name="lookup")
-    w = param(lookup(nn.embeds_w, x.w); name="lookup")
+    # setcuda(0)
+    c = param(lookup(nn.embeds_c, x.c); name="c")
+    c_dims = Var(x.batchdims_c, name="c_dims")
+    w = param(lookup(nn.embeds_w, x.w); name="w")
+    w_dims = Var(x.batchdims_w, name="w_dims")
 
-    wsize = 100
+    wsize = size(w.data, 1)
+
+    # character conv    
+    c = char_conv(T, c, c_dims, wsize, nn.winsize_c)
+
+    # word and char
+    wc = concat(1, w, c)  
+    wcsize = size(wc.data, 1)
+
+    # hidden layer
+    h = wc
     hsize = 1024
-    
-    h = Linear(T, wsize, hsize)(w)
-    h = relu(h)
+    pad = Int((nn.winsize_w - 1) / 2)
 
+    for i in 1:nn.nlayers
+        h = Conv1d(T, nn.winsize_w, (i == 1 ? wcsize : hsize), hsize, padding=pad)(h, w_dims)
+        h = dropout(h, nn.droprate)
+        h = relu(h)
+    end
+    
     h = Linear(T, hsize, nn.ntags)(h)
     pred = relu(h)
       
     if train
         t = Var(x.t; name="tag")
-        out = softmax_crossentropy(t, pred)
+        softmax_crossentropy(t, pred)
     else
-        println(string(x))
-        println(string(pred))
-      
-        println("pred", string(size(pred.data)), string(pred.data))
-
-        maxval, maxidx = findmax(pred.data, dims=1)
-
-        println("maxval", string(size(maxval)), string(maxval))
-        println("maxidx", string(size(maxidx)), string(maxidx))
-
-        for i in 1:sum(x.batchdims_w)
-            println(maxidx[i], ", ", maxval[i], ", ", view(pred.data, 1:5, i))
-        end
-        
-        argmaxidx = cat(dims=1, map(cart -> cart.I[1], maxidx)...)
-
-        println("argmaxidx", string(size(argmaxidx)), string(argmaxidx))
-
-
-        
-        out = fill(1, sum(x.batchdims_w))
+        argmax(pred)
     end
-
-    out
 end
 
 function argmax(v::Var)
-
     maxval, maxidx = findmax(v.data, dims=1)
-    argmaxidx = cat(dims=1, map(cart -> cart.I[1], maxidx)...)
-
-
-
+    cat(dims=1, map(cart -> cart.I[1], maxidx)...)
 end

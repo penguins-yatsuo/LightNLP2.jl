@@ -105,7 +105,6 @@ function Decoder(config::Dict, iolog)
         for i in 1:length(batches)
             s = batches[i]
 
-            # setcuda(0)
             z = nn(Float32, s, true)
             params = gradient!(z)
             for n in 1:length(params)
@@ -114,7 +113,6 @@ function Decoder(config::Dict, iolog)
                 end
             end
 
-            setcpu()
             loss += sum(Array(z.data))
             ProgressMeter.next!(prog)
         end
