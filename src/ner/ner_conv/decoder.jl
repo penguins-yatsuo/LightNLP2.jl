@@ -27,7 +27,6 @@ function Base.string(x::Sample)
 end
 
 
-
 macro logtime()
     return :( Dates.format(now(), "yyyy-mm-dd HH:MM:SS") )
 end
@@ -91,7 +90,6 @@ function Decoder(config::Dict, iolog)
     for epoch = 1:nepochs
         println("Epoch:\t$epoch")
  
-        #opt.rate = LEARN_RATE / BATCHSIZE
         opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
         # println("Learning rate: $(opt.rate)")
 

@@ -1,40 +1,72 @@
+using Merlin.CUDA
 
 struct NN
-    g
+    embeds_w
+    embeds_c
+    ntags::Int
+    nlayers::Int
+    winsize_c::Int
+    droprate::Float64
+    bidirectional::Bool    
+    model::Dict
 end
 
 function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int;
-            nlayers::Int=1, winsize_c::Int=2, droprate::Float64=0.1, bidirectional::Bool=true) where T
+    nlayers::Int=1, winsize_c::Int=2, droprate::Float64=0.1, bidirectional::Bool=true) where T
 
-    embeds_w = zerograd(embeds_w)
-    w = lookup(Node(embeds_w), Node(name="w"))
-
-    embeds_c = zerograd(embeds_c)
-    c = lookup(Node(embeds_c), Node(name="c"))
-    batchdims_c = Node(name="batchdims_c")
-    c = window1d(c, winsize_c, batchdims_c)
-
-    csize = (winsize_c * 2 + 1) * size(embeds_c, 1)
-    c = Linear(T, csize, csize)(c)
-    c = maximum(c, 2, batchdims_c)
-
-    h = concat(1, w, c)
-    batchdims_w = Node(name="batchdims_w")
-    hsize = size(embeds_w, 1) + csize
-    
-    h = LSTM(T, hsize, hsize, nlayers, droprate, bidirectional)(h, batchdims_w)
-
-    h = Linear(T, 2hsize, ntags)(h)
-    g = BACKEND(Graph(h))
-    NN(g)
+    setcuda(0)
+    NN(embeds_w, embeds_c, ntags, nlayers, winsize_c, droprate, bidirectional, Dict())
 end
 
-function (nn::NN)(x::Sample, train::Bool)
-    Merlin.CONFIG.train = train
-    z = nn.g(x.batchdims_c, x.batchdims_w, Var(x.c), Var(x.w))
-    if train
-        softmax_crossentropy(Var(x.t), z)
-    else
-        argmax(z.data, 1)
+function deconfigure!(nn::NN)
+    if haskey(nn.model, "h_lstm")
+        lstm = get(nn.model, "h_lstm", nothing)
+        if isa(lstm, LSTM) && lstm.iscuda
+            W = lstm.params[1]
+            isnothing(W.data) || (W.data = Array(W.data))
+            isnothing(W.grad) || (W.grad = Array(W.grad))
+
+            print(string(typeof(W)))
+            lstm.params = (W,)
+        end
     end
+end
+
+function (nn::NN)(::Type{T}, x::Sample, train::Bool) where T
+    settrain(train)    
+
+    c = param(lookup(nn.embeds_c, x.c))
+    w = param(lookup(nn.embeds_w, x.w))
+
+    # character conv
+    c_conv = get!(nn.model, "c_conv", 
+        Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c))
+    c = c_conv(c, x.batchdims_c)
+    c = max(c, x.batchdims_c)
+
+    # word and char
+    h = concat(1, w, c)
+
+    # hidden layer
+    h_lstm = get!(nn.model, "h_lstm", 
+        LSTM(T, size(h.data, 1), size(h.data, 1), nn.nlayers, nn.droprate, nn.bidirectional))
+    h = h_lstm(h, x.batchdims_w) 
+    h = relu(h)
+
+    # output layer    
+    o_linear = get!(nn.model, "o_linear", Linear(T, size(h.data, 1), nn.ntags))
+    o = o_linear(h)
+    o = relu(o)
+      
+    if train
+        softmax_crossentropy(Var(x.t), o)
+    else
+        argmax(o)
+    end
+end
+
+function argmax(v::Var)
+    x = isa(v.data, CuArray) ? Array(v.data) : v.data 
+    maxval, maxidx = findmax(x, dims=1)
+    cat(dims=1, map(cart -> cart.I[1], maxidx)...)
 end

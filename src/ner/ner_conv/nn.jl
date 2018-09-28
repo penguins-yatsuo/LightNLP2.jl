@@ -21,16 +21,14 @@ end
 function (nn::NN)(::Type{T}, x::Sample, train::Bool) where T
     settrain(train)    
 
-    c = param(lookup(nn.embeds_c, x.c); name="c")
-    c_dims = Var(x.batchdims_c, name="c_dims")
-    w = param(lookup(nn.embeds_w, x.w); name="w")
-    w_dims = Var(x.batchdims_w, name="w_dims")
+    c = param(lookup(nn.embeds_c, x.c))
+    w = param(lookup(nn.embeds_w, x.w))
 
     # character conv
     c_conv = get!(nn.model, "c_conv", 
-        Conv1d(T, nn.winsize_c, size(c.data, 1), size(w.data, 1), padding=Int((nn.winsize_c - 1) / 2)))
-    c = c_conv(c, c_dims)
-    c = max(c, c_dims)
+        Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c))
+    c = c_conv(c, x.batchdims_c)
+    c = max(c, x.batchdims_c)
 
     # word and char
     h = concat(1, w, c)
@@ -38,8 +36,8 @@ function (nn::NN)(::Type{T}, x::Sample, train::Bool) where T
     # hidden layers
     for i in 1:nn.nlayers
         h_conv = get!(nn.model, string("h_conv_", string(i)), 
-            Conv1d(T, nn.winsize_w, size(h.data, 1), size(h.data, 1), padding=Int((nn.winsize_w - 1) / 2)))
-        h = h_conv(h, w_dims)
+            Conv1d(T, nn.winsize_w * 2 + 1, size(h.data, 1), size(h.data, 1), padding=nn.winsize_w))
+        h = h_conv(h, x.batchdims_w)
         h = dropout(h, nn.droprate)
         h = relu(h)
     end
@@ -49,8 +47,7 @@ function (nn::NN)(::Type{T}, x::Sample, train::Bool) where T
     o = relu(o)
       
     if train
-        t = Var(x.t; name="tag")
-        softmax_crossentropy(t, o)
+        softmax_crossentropy(Var(x.t), o)
     else
         argmax(o)
     end
@@ -59,6 +56,6 @@ end
 
 function argmax(v::Var)
     x = isa(v.data, CuArray) ? Array(v.data) : v.data 
-    maxval, maxidx = findmax(v.data, dims=1)
+    maxval, maxidx = findmax(x, dims=1)
     cat(dims=1, map(cart -> cart.I[1], maxidx)...)
 end
