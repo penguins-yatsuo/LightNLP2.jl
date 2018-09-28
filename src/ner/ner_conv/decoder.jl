@@ -87,13 +87,12 @@ function Decoder(config::Dict, iolog)
     batchsize = config["batchsize"]
     test_batches = create_batch(testdata, batchsize)
 
-    setcuda(0)
     opt = SGD()
     for epoch = 1:nepochs
         println("Epoch:\t$epoch")
  
         #opt.rate = LEARN_RATE / BATCHSIZE
-        # opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
+        opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
         # println("Learning rate: $(opt.rate)")
 
         @printf(iolog, "%s %s begin epoch %d - optimize %s\n", @logtime, procname, epoch, string(opt))
