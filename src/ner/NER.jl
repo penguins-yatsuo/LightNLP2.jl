@@ -1,27 +1,10 @@
 module NER
-using Merlin
-using ProgressMeter
-using HDF5
-
-module Convolution
-
-
-# const BACKEND = CPUBackend()
 
 include("BIOES.jl")
-include("ner_conv/decoder.jl")
-include("ner_conv/nn.jl")
+include("decoder.jl")
+include("model/nn_conv.jl")
+include("model/nn_lstm.jl")
 
-end
+end # module NER
 
-module Lstm
 
-# const BACKEND = CPUBackend()
-
-include("BIOES.jl")
-include("ner_lstm/decoder.jl")
-include("ner_lstm/nn.jl")
-
-end
-
-end

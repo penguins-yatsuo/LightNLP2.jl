@@ -1,2 +1,4 @@
 *.h5 filter=lfs diff=lfs merge=lfs -text
 *.jld2 filter=lfs diff=lfs merge=lfs -text
+*.bioes filter=lfs diff=lfs merge=lfs -text
+*.hdf5 filter=lfs diff=lfs merge=lfs -text

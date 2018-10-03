@@ -1,4 +1,4 @@
-export decode
+export decode, Sample
 
 using Printf, Dates, HDF5, Random, Merlin, ProgressMeter
 
@@ -58,32 +58,20 @@ function Decoder(config::Dict, iolog)
     wordembeds = h5read(config["wordvec_file"], "vectors")
     worddict = Dict(words[i] => i for i=1:length(words))
     chardict, tagdict = initvocab(config["train_file"])
-    charembeds = Normal(0,0.01)(Float32, 20, length(chardict))
+    charembeds = Normal(0, 0.01)(Float32, 20, length(chardict))
     traindata = readdata(config["train_file"], worddict, chardict, tagdict)
     testdata = readdata(config["test_file"], worddict, chardict, tagdict)
-    nepochs = haskey(config, "nepochs") ? config["nepochs"] : 1
-    nlayers = haskey(config, "nlayers") ? config["nlayers"] : 1
-    winsize_c = haskey(config, "winsize_c") ? config["winsize_c"] : 2
-    winsize_w = haskey(config, "winsize_w") ? config["winsize_w"] : 5  
-    droprate = haskey(config, "droprate") ? config["droprate"] : 0.2 
+    nepochs = get!(config, "nepochs", 1)
+    procname = @sprintf("NER[%s]", get!(config, "jobid", "-"))
 
-    procname = @sprintf("NER.Convolution[%s]", haskey(config, "jobid") ? config["jobid"] : "-")
-    # @printf(iolog, "%s %s training - train:%d test:%d words:%d, chars:%d tags:%d\n", @logtime, procname, 
-    #         length(traindata), length(testdata), length(worddict), length(chardict), length(tagdict))
-    # @printf(iolog, "%s %s arguments - nepochs:%d, nlayers:%d droprate:%f winsize_c:%d winsize_w:%d\n", @logtime, procname, 
-    #         nepochs, nlayers, droprate, winsize_c, winsize_w)
+    nn, nntext = create_network(config, wordembeds, charembeds, length(tagdict))
+
+    @printf(iolog, "%s %s training - train:%d test:%d words:%d, chars:%d tags:%d nepochs:%d\n", @logtime, procname, 
+            length(traindata), length(testdata), length(worddict), length(chardict), length(tagdict), nepochs)
+    @printf(iolog, "%s %s model - %s\n", @logtime, procname, nntext)
     flush(iolog)
 
-    nn = NN(wordembeds, charembeds, length(tagdict); 
-            nlayers=nlayers, winsize_c=winsize_c, winsize_w=winsize_w, droprate=droprate)
-
-    # @info("#Training examples:\t$(length(traindata))")
-    # @info("#Testing examples:\t$(length(testdata))")
-    # @info("#Words1:\t$(length(worddict))")
-    # @info("#Chars:\t$(length(chardict))")
-    # @info("#Tags:\t$(length(tagdict))")
-
-    batchsize = config["batchsize"]
+    batchsize = get!(config, "batchsize", 1)
     test_batches = create_batch(testdata, batchsize)
 
     opt = SGD()
@@ -93,7 +81,7 @@ function Decoder(config::Dict, iolog)
         opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
         # println("Learning rate: $(opt.rate)")
 
-        @printf(iolog, "%s %s begin epoch %d - optimize %s\n", @logtime, procname, epoch, string(opt))
+        @printf(iolog, "%s %s begin epoch %d\n", @logtime, procname, epoch)
         flush(iolog)
 
         shuffle!(traindata)
@@ -115,7 +103,7 @@ function Decoder(config::Dict, iolog)
             ProgressMeter.next!(prog)
         end
         loss /= length(batches)
-        println("Loss:\t$loss")
+        @printf(stdout, "Loss: %.5f,\n", loss)
 
         # test
         println("Testing...")
@@ -142,6 +130,40 @@ function Decoder(config::Dict, iolog)
     @printf(iolog, "%s %s training complete\n", @logtime, procname)
 
     Decoder(worddict, chardict, tagdict, nn)
+end
+
+function create_network(config::Dict, wordembeds, charembeds, ntags)
+    use_gpu = get!(config, "use_gpu", false)
+    nlayers = get!(config, "nlayers", 1) 
+    droprate = get!(config, "droprate", 0.2)
+
+    neural_network = lowercase(get!(config, "neural_network", "UNKNOWN"))
+
+    if neural_network == "conv" 
+        winsize_c = get!(config, "winsize_c", 2)
+        winsize_w = get!(config, "winsize_w", 5)
+
+        nn = Convolution.NN(wordembeds, charembeds, ntags,
+            nlayers=nlayers, winsize_c=winsize_c, winsize_w=winsize_w, droprate=droprate, use_gpu=use_gpu)
+
+        text = @sprintf("%s (nlayers:%d droprate:%f winsize_c:%d winsize_w:%d)\n",  
+            neural_network, nlayers, droprate, winsize_c, winsize_w)
+
+    elseif neural_network == "lstm"
+        winsize_c = get!(config, "winsize_c", 2)
+        bidirectional = get!(config, "bidirectional", true)
+
+        nn = LSTM.NN(wordembeds, charembeds, ntags,
+            nlayers=nlayers, winsize_c=winsize_c, droprate=droprate, bidirectional=bidirectional, use_gpu=use_gpu)
+
+        text = @sprintf("%s (nlayers:%d droprate:%f winsize_c:%d bidirectional:%s)\n", 
+            neural_network, nlayers, droprate, winsize_c, string(bidirectional))
+
+    else
+        throw(UndefVarError(:neural_network))
+    end
+
+    nn, text
 end
 
 function initvocab(path::String)
@@ -257,8 +279,6 @@ function fscore(golds::Vector{T}, preds::Vector{T}) where T
     prec = round(count/length(preds); digits=5)
     recall = round(count/length(golds); digits=5)
     fval = round(2*recall*prec/(recall+prec); digits=5)
-    println("Prec:\t$prec")
-    println("Recall:\t$recall")
-    println("Fscore:\t$fval")
+    @printf(stdout, "Prec: %.5f, Recall: %.5f, Fscore: %.5f\n", prec, recall, fval)
     prec, recall, fval
 end
