@@ -63,6 +63,12 @@ function get_args()
         "--use-gpu"
             help = "Use GPU device"
             action = :store_true
+        "--ntrain"
+            help = "Count of training data"
+            arg_type = Int
+        "--ntest"
+            help = "Count of test data"
+            arg_type = Int
         "--verbose", "-v"
             help = "print verbose output"
             action = :store_true

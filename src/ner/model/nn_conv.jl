@@ -1,9 +1,5 @@
-module Convolution
 
-using Merlin, Merlin.CUDA
-using ..NER
-
-struct NN
+struct ConvNet
     embeds_w
     embeds_c
     ntags::Int
@@ -15,17 +11,21 @@ struct NN
     layers::Dict
 end
 
-function NN(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int; 
+function ConvNet(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int; 
             nlayers::Int=2, winsize_c::Int=2, winsize_w::Int=5, droprate::Float64=0.1, use_gpu::Bool=false) where T
     if use_gpu
         setcuda(0)
     else
         setcpu()
     end
-    NN(embeds_w, embeds_c, ntags, nlayers, winsize_c, winsize_w, droprate, use_gpu, Dict())
+    ConvNet(embeds_w, embeds_c, ntags, nlayers, winsize_c, winsize_w, droprate, use_gpu, Dict())
 end
 
-function (nn::NN)(::Type{T}, x::Sample, train::Bool) where T
+function deconfigure!(nn::ConvNet)
+
+end
+
+function (nn::ConvNet)(::Type{T}, x::Sample, train::Bool) where T
     settrain(train)    
 
     c = param(lookup(nn.embeds_c, x.c))
@@ -33,7 +33,7 @@ function (nn::NN)(::Type{T}, x::Sample, train::Bool) where T
 
     # character conv
     c_conv = get!(nn.layers, "c_conv", 
-        Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c))
+        Merlin.Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c))
     c = c_conv(c, x.batchdims_c)
     c = max(c, x.batchdims_c)
 
@@ -43,7 +43,7 @@ function (nn::NN)(::Type{T}, x::Sample, train::Bool) where T
     # hidden layers
     for i in 1:nn.nlayers
         h_conv = get!(nn.layers, string("h_conv_", string(i)), 
-            Conv1d(T, nn.winsize_w * 2 + 1, size(h.data, 1), size(h.data, 1), padding=nn.winsize_w))
+            Merlin.Conv1d(T, nn.winsize_w * 2 + 1, size(h.data, 1), size(h.data, 1), padding=nn.winsize_w))
         h = h_conv(h, x.batchdims_w)
         h = dropout(h, nn.droprate)
         h = relu(h)
@@ -66,5 +66,3 @@ function argmax(v::Var)
     maxval, maxidx = findmax(x, dims=1)
     cat(dims=1, map(cart -> cart.I[1], maxidx)...)
 end
-
-end # module Convolution

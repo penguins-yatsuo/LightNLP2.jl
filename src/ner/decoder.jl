@@ -1,6 +1,6 @@
-export decode, Sample
+export decode
 
-using Printf, Dates, HDF5, Random, Merlin, ProgressMeter
+using Printf, Dates, HDF5, Random, ProgressMeter, Merlin
 
 mutable struct Decoder
     worddict::Dict
@@ -31,10 +31,15 @@ macro logtime()
     return :( Dates.format(now(), "yyyy-mm-dd HH:MM:SS") )
 end
 
-function create_batch(samples::Vector{Sample}, batchsize::Int)
+function create_batch(samples::Vector{Sample}, batchsize::Int, n_samples::Int=0)
     batches = Sample[]
-    for i = 1:batchsize:length(samples)
-        range = i:min(i+batchsize-1,length(samples))
+
+    if n_samples == 0
+        n_samples = length(samples)
+    end
+
+    for i = 1:batchsize:n_samples
+        range = i:min(i+batchsize-1,n_samples)
         s = samples[range]
         w = cat(dims=2, map(x -> x.w, s)...)
         c = cat(dims=2, map(x -> x.c, s)...)
@@ -61,22 +66,27 @@ function Decoder(config::Dict, iolog)
     charembeds = Normal(0, 0.01)(Float32, 20, length(chardict))
     traindata = readdata(config["train_file"], worddict, chardict, tagdict)
     testdata = readdata(config["test_file"], worddict, chardict, tagdict)
-    nepochs = get!(config, "nepochs", 1)
     procname = @sprintf("NER[%s]", get!(config, "jobid", "-"))
+
+    nepochs = get!(config, "nepochs", 1)
+    batchsize = get!(config, "batchsize", 1)
+    n_train = get!(config, "ntrain", length(traindata))
+    n_test = get!(config, "ntest", length(testdata))
 
     nn, nntext = create_network(config, wordembeds, charembeds, length(tagdict))
 
-    @printf(iolog, "%s %s training - train:%d test:%d words:%d, chars:%d tags:%d nepochs:%d\n", @logtime, procname, 
-            length(traindata), length(testdata), length(worddict), length(chardict), length(tagdict), nepochs)
+    @printf(iolog, "%s %s traindata:%d testdata:%d words:%d, chars:%d tags:%d\n", @logtime, procname, 
+            length(traindata), length(testdata), length(worddict), length(chardict), length(tagdict))
+    @printf(iolog, "%s %s training - nepochs:%d batchsize:%d ntrain:%d ntest:%d\n", @logtime, procname, 
+            nepochs, batchsize, n_train, n_test)
     @printf(iolog, "%s %s model - %s\n", @logtime, procname, nntext)
     flush(iolog)
 
-    batchsize = get!(config, "batchsize", 1)
-    test_batches = create_batch(testdata, batchsize)
+    test_batches = create_batch(testdata, batchsize, n_test)
 
     opt = SGD()
     for epoch = 1:nepochs
-        println("Epoch:\t$epoch")
+        @printf(stdout, "Epoch: %d\n", epoch)
  
         opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
         # println("Learning rate: $(opt.rate)")
@@ -85,7 +95,7 @@ function Decoder(config::Dict, iolog)
         flush(iolog)
 
         shuffle!(traindata)
-        batches = create_batch(traindata, batchsize)
+        batches = create_batch(traindata, batchsize, n_train)
         prog = Progress(length(batches))
         loss = 0.0
         for i in 1:length(batches)
@@ -99,14 +109,14 @@ function Decoder(config::Dict, iolog)
                 end
             end
 
-            loss += sum(Array(z.data))
+            loss += sum(Array(z.data)) / batchsize
             ProgressMeter.next!(prog)
         end
         loss /= length(batches)
-        @printf(stdout, "Loss: %.5f,\n", loss)
+        @printf(stdout, "Loss: %.5f\n", loss)
 
         # test
-        println("Testing...")
+        @printf(stdout, "Test ")
         preds = Int[]
         golds = Int[]
         for i in 1:length(test_batches)
@@ -129,6 +139,7 @@ function Decoder(config::Dict, iolog)
 
     @printf(iolog, "%s %s training complete\n", @logtime, procname)
 
+    deconfigure!(nn)
     Decoder(worddict, chardict, tagdict, nn)
 end
 
@@ -143,7 +154,7 @@ function create_network(config::Dict, wordembeds, charembeds, ntags)
         winsize_c = get!(config, "winsize_c", 2)
         winsize_w = get!(config, "winsize_w", 5)
 
-        nn = Convolution.NN(wordembeds, charembeds, ntags,
+        nn = ConvNet(wordembeds, charembeds, ntags,
             nlayers=nlayers, winsize_c=winsize_c, winsize_w=winsize_w, droprate=droprate, use_gpu=use_gpu)
 
         text = @sprintf("%s (nlayers:%d droprate:%f winsize_c:%d winsize_w:%d)\n",  
@@ -153,7 +164,7 @@ function create_network(config::Dict, wordembeds, charembeds, ntags)
         winsize_c = get!(config, "winsize_c", 2)
         bidirectional = get!(config, "bidirectional", true)
 
-        nn = LSTM.NN(wordembeds, charembeds, ntags,
+        nn = LstmNet(wordembeds, charembeds, ntags,
             nlayers=nlayers, winsize_c=winsize_c, droprate=droprate, bidirectional=bidirectional, use_gpu=use_gpu)
 
         text = @sprintf("%s (nlayers:%d droprate:%f winsize_c:%d bidirectional:%s)\n", 
