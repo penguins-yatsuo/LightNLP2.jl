@@ -1,1 +1,1 @@
-julia merlin_lightnlp.jl --neural-network=lstm --model=testl.jld2 --training --nepochs=1 --batchsize=2 --nlayers=1 --ntrain=100 --ntest=10 --use-gpu
+julia merlin_lightnlp.jl --neural-network=lstm --model=testl.jld2 --training --nepochs=10 --batchsize=4 --nlayers=1 --use-gpu

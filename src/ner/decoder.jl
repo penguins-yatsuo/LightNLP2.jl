@@ -73,11 +73,18 @@ function Decoder(config::Dict, iolog)
     n_train = get!(config, "ntrain", length(traindata))
     n_test = get!(config, "ntest", length(testdata))
 
+    if isnothing(n_train) || n_train < 1
+        n_train = length(traindata)
+    end
+    if isnothing(n_test) || n_test < 1
+        n_test = length(testdata)
+    end
+
     nn, nntext = create_network(config, wordembeds, charembeds, length(tagdict))
 
-    @printf(iolog, "%s %s traindata:%d testdata:%d words:%d, chars:%d tags:%d\n", @logtime, procname, 
+    @printf(iolog, "%s %s train - traindata:%d testdata:%d words:%d, chars:%d tags:%d\n", @logtime, procname, 
             length(traindata), length(testdata), length(worddict), length(chardict), length(tagdict))
-    @printf(iolog, "%s %s training - nepochs:%d batchsize:%d ntrain:%d ntest:%d\n", @logtime, procname, 
+    @printf(iolog, "%s %s nepochs:%d batchsize:%d n_train:%d n_test:%d\n", @logtime, procname, 
             nepochs, batchsize, n_train, n_test)
     @printf(iolog, "%s %s model - %s\n", @logtime, procname, nntext)
     flush(iolog)
@@ -131,7 +138,7 @@ function Decoder(config::Dict, iolog)
         golds = BIOES.decode(golds, tagdict)
         prec, recall, fval = fscore(golds, preds)
 
-        @printf(iolog, "%s %s end epoch %d - loss:%.4e fval:%.5f prec:%.5f recall:%.5f\n", @logtime, procname, 
+        @printf(iolog, "%s %s end epoch %d - loss:%.5f fval:%.5f prec:%.5f recall:%.5f\n", @logtime, procname, 
                 epoch, loss, fval, prec, recall)
         flush(iolog)
         println()
@@ -139,7 +146,7 @@ function Decoder(config::Dict, iolog)
 
     @printf(iolog, "%s %s training complete\n", @logtime, procname)
 
-    deconfigure!(nn)
+    finalize!(nn)
     Decoder(worddict, chardict, tagdict, nn)
 end
 
@@ -219,7 +226,7 @@ function decode(dec::Decoder, config::Dict)
 
     preds = Int[]
     for x in testdata
-        y = dec.nn(x, false)
+        y = dec.nn(Float32, x, false)
         append!(preds, y)
     end
 

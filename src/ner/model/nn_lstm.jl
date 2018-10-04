@@ -7,7 +7,7 @@ struct LstmNet
     winsize_c::Int
     droprate::Float64
     bidirectional::Bool 
-    layers::Dict
+    model::Dict
 end
 
 function LstmNet(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int;
@@ -20,20 +20,13 @@ function LstmNet(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int;
     LstmNet(embeds_w, embeds_c, ntags, nlayers, winsize_c, droprate, bidirectional, Dict())
 end
 
-function deconfigure!(nn::LstmNet)
-    if haskey(nn.model, "h_lstm")
-        lstm = get(nn.model, "h_lstm", nothing)
-
-        println(string(lstm))
-
-        if isa(lstm, LSTM) && lstm.iscuda
-            W = lstm.params[1]
-            isnothing(W.data) || (W.data = Array(W.data))
-            isnothing(W.grad) || (W.grad = Array(W.grad))
-
-            print(string(typeof(W)))
-            lstm.params = (W,)
-        end
+function finalize!(nn::LstmNet)
+    setcpu()
+    configure!(nn.embeds_w, nn.embeds_c)
+    for m in values(nn.model)
+        isa(m, Merlin.LSTM) && configure!(m.params...)
+        isa(m, Merlin.Conv1d) && configure!(m.W, m.b)
+        isa(m, Merlin.Linear) && configure!(m.W, m.b)
     end
 end
 
@@ -44,7 +37,7 @@ function (nn::LstmNet)(::Type{T}, x::Sample, train::Bool) where T
     w = param(lookup(nn.embeds_w, x.w))
 
     # character conv
-    c_conv = get!(nn.layers, "c_conv", 
+    c_conv = get!(nn.model, "c_conv", 
         Merlin.Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c))
     c = c_conv(c, x.batchdims_c)
     c = max(c, x.batchdims_c)
@@ -53,13 +46,13 @@ function (nn::LstmNet)(::Type{T}, x::Sample, train::Bool) where T
     h = concat(1, w, c)
 
     # hidden layer
-    h_lstm = get!(nn.layers, "h_lstm", 
+    h_lstm = get!(nn.model, "h_lstm", 
         Merlin.LSTM(T, size(h.data, 1), size(h.data, 1), nn.nlayers, nn.droprate, nn.bidirectional))
     h = h_lstm(h, x.batchdims_w) 
     h = relu(h)
 
     # output layer    
-    o_linear = get!(nn.layers, "o_linear", Linear(T, size(h.data, 1), nn.ntags))
+    o_linear = get!(nn.model, "o_linear", Linear(T, size(h.data, 1), nn.ntags))
     o = o_linear(h)
     o = relu(o)
       
@@ -71,7 +64,7 @@ function (nn::LstmNet)(::Type{T}, x::Sample, train::Bool) where T
 end
 
 function argmax(v::Var)
-    x = isa(v.data, CuArray) ? Array(v.data) : v.data 
+    x = Array(v.data)
     maxval, maxidx = findmax(x, dims=1)
     cat(dims=1, map(cart -> cart.I[1], maxidx)...)
 end

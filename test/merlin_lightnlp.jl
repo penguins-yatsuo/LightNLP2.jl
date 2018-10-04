@@ -1,7 +1,7 @@
 using ArgParse
 
 using LightNLP
-using JLD2, FileIO, Printf
+using JLD2, FileIO
 
 function get_args()
     s = ArgParseSettings(
@@ -87,13 +87,13 @@ function main()
 
     if args["training"]
 
-        model = LightNLP.NER.Decoder(args, iolog)
-        save(modelfile, "model", model)    
+        decoder = LightNLP.NER.Decoder(args, iolog)
+        save(modelfile, "decoder", decoder)    
 
     else
 
-        model = load(modelfile, "model")
-        LightNLP.NER.decode(model, args)
+        decoder = load(modelfile, "decoder")
+        LightNLP.NER.decode(decoder, args)
 
     end
 
