@@ -87,7 +87,7 @@ function main()
 
     if args["training"]
 
-        decoder = LightNLP.NER.Decoder(args, iolog)
+        decoder = LightNLP2.NER.Decoder(args, iolog)
         save(modelfile, "decoder", decoder)    
 
     else

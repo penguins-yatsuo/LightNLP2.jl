@@ -1,7 +1,5 @@
 
-module LightNLP
-
-
+module LightNLP2
 
 include("ner/NER.jl")
 
