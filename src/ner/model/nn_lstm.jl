@@ -1,7 +1,5 @@
 
 struct LstmNet
-    embeds_w
-    embeds_c
     ntags::Int
     nlayers::Int
     winsize_c::Int
@@ -10,61 +8,48 @@ struct LstmNet
     model::Dict
 end
 
-function LstmNet(embeds_w::Matrix{T}, embeds_c::Matrix{T}, ntags::Int;
-    nlayers::Int=1, winsize_c::Int=2, droprate::Float64=0.1, bidirectional::Bool=true, use_gpu::Bool=false) where T
-    if use_gpu
-        setcuda(0)
-    else
-        setcpu()
-    end
-    LstmNet(embeds_w, embeds_c, ntags, nlayers, winsize_c, droprate, bidirectional, Dict())
+function LstmNet(ntags::Int;
+        nlayers::Int=2, winsize_c::Int=2, bidirectional::Bool=true, droprate::Float64=0.1) where T
+
+    LstmNet(ntags, nlayers, winsize_c, droprate, bidirectional, Dict())
 end
 
-function finalize!(nn::LstmNet)
-    setcpu()
-    configure!(nn.embeds_w, nn.embeds_c)
-    for m in values(nn.model)
-        isa(m, Merlin.LSTM) && configure!(m.params...)
-        isa(m, Merlin.Conv1d) && configure!(m.W, m.b)
-        isa(m, Merlin.Linear) && configure!(m.W, m.b)
+
+function todevice!(nn::LstmNet)
+    for (key, m) in pairs(nn.model)
+        if isa(m, Merlin.Conv1d) || isa(m, Merlin.Linear) || isa(m, Merlin.LSTM)
+            nn.model[key] = todevice(m)
+        end
     end
 end
 
-function (nn::LstmNet)(::Type{T}, x::Sample, train::Bool) where T
-    settrain(train)    
-
-    c = param(lookup(nn.embeds_c, x.c))
-    w = param(lookup(nn.embeds_w, x.w))
+function (nn::LstmNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::Sample) where T
+    c = Merlin.todevice(parameter(lookup(embeds_c, x.c)))
+    w = Merlin.todevice(parameter(lookup(embeds_w, x.w)))
 
     # character conv
     c_conv = get!(nn.model, "c_conv", 
-        Merlin.Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c))
-    c = c_conv(c, x.batchdims_c)
-    c = max(c, x.batchdims_c)
+        todevice(Merlin.Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c)))    
+    c = max(c_conv(c, x.batchdims_c), x.batchdims_c)
 
-    # word and char
+    # concatinate word and char
     h = concat(1, w, c)
 
-    # hidden layer
-    h_lstm = get!(nn.model, "h_lstm", 
-        Merlin.LSTM(T, size(h.data, 1), size(h.data, 1), nn.nlayers, nn.droprate, nn.bidirectional))
-    h = h_lstm(h, x.batchdims_w) 
-    h = relu(h)
+    # hidden layers
+    for i in 1:nn.nlayers
+        h_lstm = get!(nn.model, string("h_lstm_", string(i)), 
+            todevice(Merlin.LSTM(T, size(h.data, 1), size(h.data, 1), 1, nn.droprate, nn.bidirectional)))
+        h = relu(h_lstm(h, x.batchdims_w))
+    end
 
-    # output layer    
-    o_linear = get!(nn.model, "o_linear", Linear(T, size(h.data, 1), nn.ntags))
-    o = o_linear(h)
-    o = relu(o)
+    # full connect
+    fc = get!(nn.model, "fc", todevice(Linear(T, size(h.data, 1), nn.ntags)))
+    o = relu(fc(h))
       
-    if train
-        softmax_crossentropy(Var(x.t), o)
+    # result
+    if Merlin.istrain()
+        softmax_crossentropy(Merlin.todevice(Var(x.t)), o)
     else
         argmax(o)
     end
-end
-
-function argmax(v::Var)
-    x = Array(v.data)
-    maxval, maxidx = findmax(x, dims=1)
-    cat(dims=1, map(cart -> cart.I[1], maxidx)...)
 end

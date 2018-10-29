@@ -72,6 +72,7 @@ function Decoder(config::Dict, iolog)
     batchsize = get!(config, "batchsize", 1)
     n_train = get!(config, "ntrain", length(traindata))
     n_test = get!(config, "ntest", length(testdata))
+    use_gpu = get!(config, "use_gpu", false)
 
     if isnothing(n_train) || n_train < 1
         n_train = length(traindata)
@@ -89,10 +90,17 @@ function Decoder(config::Dict, iolog)
     @printf(iolog, "%s %s model - %s\n", @logtime, procname, nntext)
     flush(iolog)
 
-    test_batches = create_batch(testdata, batchsize, n_test)
+    if use_gpu 
+        setcuda(0)
+        todevice!(nn)
+    end
 
     opt = SGD()
+    test_batches = create_batch(testdata, batchsize, n_test)
+
     for epoch = 1:nepochs
+        # train
+        settrain(true)
         @printf(stdout, "Epoch: %d\n", epoch)
  
         opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
@@ -108,7 +116,7 @@ function Decoder(config::Dict, iolog)
         for i in 1:length(batches)
             s = batches[i]
 
-            z = nn(Float32, s, true)
+            z = nn(Float32, charembeds, wordembeds, s)
             params = gradient!(z)
             for n in 1:length(params)
                 if !isnothing(params[n].grad)
@@ -123,12 +131,13 @@ function Decoder(config::Dict, iolog)
         @printf(stdout, "Loss: %.5f\n", loss)
 
         # test
+        settrain(false)
         @printf(stdout, "Test ")
         preds = Int[]
         golds = Int[]
         for i in 1:length(test_batches)
             s = test_batches[i]
-            z = nn(Float32, s, false)
+            z = nn(Float32, charembeds, wordembeds, s)
             append!(preds, z)
             append!(golds, s.t)
         end
@@ -146,12 +155,14 @@ function Decoder(config::Dict, iolog)
 
     @printf(iolog, "%s %s training complete\n", @logtime, procname)
 
-    finalize!(nn)
+    if ongpu()
+        setcpu()
+        todevice!(nn)
+    end
     Decoder(worddict, chardict, tagdict, nn)
 end
 
 function create_network(config::Dict, wordembeds, charembeds, ntags)
-    use_gpu = get!(config, "use_gpu", false)
     nlayers = get!(config, "nlayers", 1) 
     droprate = get!(config, "droprate", 0.2)
 
@@ -161,21 +172,21 @@ function create_network(config::Dict, wordembeds, charembeds, ntags)
         winsize_c = get!(config, "winsize_c", 2)
         winsize_w = get!(config, "winsize_w", 5)
 
-        nn = ConvNet(wordembeds, charembeds, ntags,
-            nlayers=nlayers, winsize_c=winsize_c, winsize_w=winsize_w, droprate=droprate, use_gpu=use_gpu)
+        nn = ConvNet(ntags,
+            nlayers=nlayers, winsize_c=winsize_c, winsize_w=winsize_w, droprate=droprate)
 
-        text = @sprintf("%s (nlayers:%d droprate:%f winsize_c:%d winsize_w:%d)\n",  
-            neural_network, nlayers, droprate, winsize_c, winsize_w)
+        text = @sprintf("%s (nlayers:%d winsize_c:%d winsize_w:%d droprate:%f)\n",  
+            neural_network, nlayers, winsize_c, winsize_w, droprate)
 
     elseif neural_network == "lstm"
         winsize_c = get!(config, "winsize_c", 2)
         bidirectional = get!(config, "bidirectional", true)
 
-        nn = LstmNet(wordembeds, charembeds, ntags,
-            nlayers=nlayers, winsize_c=winsize_c, droprate=droprate, bidirectional=bidirectional, use_gpu=use_gpu)
+        nn = LstmNet(ntags,
+            nlayers=nlayers, winsize_c=winsize_c, bidirectional=bidirectional, droprate=droprate)
 
-        text = @sprintf("%s (nlayers:%d droprate:%f winsize_c:%d bidirectional:%s)\n", 
-            neural_network, nlayers, droprate, winsize_c, string(bidirectional))
+        text = @sprintf("%s (nlayers:%d winsize_c:%d bidirectional:%s droprate:%f)\n", 
+            neural_network, nlayers, winsize_c, string(bidirectional), droprate)
 
     else
         throw(UndefVarError(:neural_network))
