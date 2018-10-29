@@ -1,4 +1,3 @@
-
 struct LstmNet
     ntags::Int
     nlayers::Int
@@ -48,7 +47,7 @@ function (nn::LstmNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::S
       
     # result
     if Merlin.istrain()
-        softmax_crossentropy(Merlin.todevice(Var(x.t)), o)
+        softmax_crossentropy(Merlin.todevice(Merlin.Var(x.t)), o)
     else
         argmax(o)
     end
