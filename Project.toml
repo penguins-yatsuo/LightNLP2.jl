@@ -1,6 +1,7 @@
 name = "LightNLP2"
 uuid = "d07d7287-2e27-4e0b-90cf-3f5579e7f2cb"
 license = "MIT"
+version = "0.1.0"
 
 [deps]
 Merlin = "80f3d04f-b880-5e6d-8e06-6a7e799169ac"
