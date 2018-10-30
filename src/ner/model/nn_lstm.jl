@@ -1,3 +1,7 @@
+using Merlin: istrain, todevice, parameter, Var
+using Merlin: lookup, max, concat, relu, softmax_crossentropy
+using Merlin: Linear, Conv1d, LSTM
+
 struct LstmNet
     ntags::Int
     nlayers::Int
@@ -16,19 +20,19 @@ end
 
 function todevice!(nn::LstmNet)
     for (key, m) in pairs(nn.model)
-        if isa(m, Merlin.Conv1d) || isa(m, Merlin.Linear) || isa(m, Merlin.LSTM)
+        if isa(m, Conv1d) || isa(m, Linear) || isa(m, LSTM)
             nn.model[key] = todevice(m)
         end
     end
 end
 
 function (nn::LstmNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::Sample) where T
-    c = Merlin.todevice(parameter(lookup(embeds_c, x.c)))
-    w = Merlin.todevice(parameter(lookup(embeds_w, x.w)))
+    c = todevice(parameter(lookup(embeds_c, x.c)))
+    w = todevice(parameter(lookup(embeds_w, x.w)))
 
     # character conv
     c_conv = get!(nn.model, "c_conv", 
-        todevice(Merlin.Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c)))    
+        todevice(Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c)))    
     c = max(c_conv(c, x.batchdims_c), x.batchdims_c)
 
     # concatinate word and char
@@ -37,7 +41,7 @@ function (nn::LstmNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::S
     # hidden layers
     for i in 1:nn.nlayers
         h_lstm = get!(nn.model, string("h_lstm_", string(i)), 
-            todevice(Merlin.LSTM(T, size(h.data, 1), size(h.data, 1), 1, nn.droprate, nn.bidirectional)))
+            todevice(LSTM(T, size(h.data, 1), size(h.data, 1), 1, nn.droprate, nn.bidirectional)))
         h = relu(h_lstm(h, x.batchdims_w))
     end
 
@@ -46,8 +50,8 @@ function (nn::LstmNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::S
     o = relu(fc(h))
       
     # result
-    if Merlin.istrain()
-        softmax_crossentropy(Merlin.todevice(Merlin.Var(x.t)), o)
+    if istrain()
+        softmax_crossentropy(todevice(Var(x.t)), o)
     else
         argmax(o)
     end

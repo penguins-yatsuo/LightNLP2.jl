@@ -1,3 +1,4 @@
+import Merlin: Normal
 
 function initvocab(path::String)
     chardict = Dict{String,Int}()
@@ -28,7 +29,7 @@ function initvocab(path::String)
     chardict = Dict(chars[i] => i for i=1:length(chars))
     chardict["UNKNOWN"] = length(chardict) + 1
 
-    charembeds = Normal(0, 0.01)(Float32, 20, length(chardict))
+    charembeds = Merlin.Normal(0, 0.01)(Float32, 20, length(chardict))
 
     chardict, charembeds, tagdict
 end

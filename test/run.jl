@@ -1,6 +1,6 @@
 using ArgParse
 
-using NerDecoder
+using LightNLP2
 using JLD2, FileIO
 
 function get_args()

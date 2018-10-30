@@ -1,6 +1,10 @@
 module NER
 
-import Merlin
+using Dates: format, now
+
+macro timestr()
+    return :( format(now(), "yyyy-mm-dd HH:MM:SS") )
+end
 
 include("BIOES.jl")
 include("vocab.jl")

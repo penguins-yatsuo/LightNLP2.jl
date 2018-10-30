@@ -2,5 +2,7 @@ julia 1.0
 HDF5
 JLD2
 FileIO
+Printf
 ArgParse
+ProgressMeter
 Merlin

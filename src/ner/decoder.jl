@@ -1,6 +1,9 @@
-export decode
+using HDF5, ProgressMeter
 
-using Printf, Dates, HDF5
+using Printf: @printf, @sprintf
+
+using Merlin: oncpu, setcpu, ongpu, setcuda, settrain
+using Merlin: shuffle!, gradient!, SGD
 
 mutable struct Decoder
     worddict::Dict
@@ -9,9 +12,6 @@ mutable struct Decoder
     nn
 end
 
-macro logtime()
-    return :( Dates.format(now(), "yyyy-mm-dd HH:MM:SS") )
-end
 
 function Decoder(config::Dict, iolog)
     chardict, charembeds, tagdict = initvocab(config["train_file"])
@@ -27,21 +27,21 @@ function Decoder(config::Dict, iolog)
     n_test = get!(config, "ntest", length(testdata))
     use_gpu = get!(config, "use_gpu", false)
 
-    if isnothing(n_train) || n_train < 1
+    if n_train == nothing || n_train < 1
         n_train = length(traindata)
     end
-    if isnothing(n_test) || n_test < 1
+    if n_test == nothing || n_test < 1
         n_test = length(testdata)
     end
 
-    @printf(iolog, "%s %s train - traindata:%d testdata:%d words:%d, chars:%d tags:%d\n", @logtime, procname, 
+    @printf(iolog, "%s %s train - traindata:%d testdata:%d words:%d, chars:%d tags:%d\n", @timestr, procname, 
             length(traindata), length(testdata), length(worddict), length(chardict), length(tagdict))
-    @printf(iolog, "%s %s nepochs:%d batchsize:%d n_train:%d n_test:%d\n", @logtime, procname, 
+    @printf(iolog, "%s %s nepochs:%d batchsize:%d n_train:%d n_test:%d\n", @timestr, procname, 
             nepochs, batchsize, n_train, n_test)
 
     nn, nntext = create_model(config, length(tagdict))
 
-    @printf(iolog, "%s %s model - %s\n", @logtime, procname, nntext)
+    @printf(iolog, "%s %s model - %s\n", @timestr, procname, nntext)
     flush(iolog)
 
     if use_gpu 
@@ -49,22 +49,20 @@ function Decoder(config::Dict, iolog)
         todevice!(nn)
     end
 
-    opt = Merlin.SGD()
+    opt = SGD()
     test_batches = create_batch(testdata, batchsize, n_test)
 
     for epoch = 1:nepochs
         # train
         settrain(true)
         @printf(stdout, "Epoch: %d\n", epoch)
- 
-        opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
-        # println("Learning rate: $(opt.rate)")
-
-        @printf(iolog, "%s %s begin epoch %d\n", @logtime, procname, epoch)
+        @printf(iolog, "%s %s begin epoch %d\n", @timestr, procname, epoch)
         flush(iolog)
-
+ 
         shuffle!(traindata)
         batches = create_batch(traindata, batchsize, n_train)
+        opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
+
         prog = Progress(length(batches))
         loss = 0.0
         for i in 1:length(batches)
@@ -72,13 +70,13 @@ function Decoder(config::Dict, iolog)
             z = nn(Float32, charembeds, wordembeds, s)
             params = gradient!(z)
             for n in 1:length(params)
-                if !isnothing(params[n].grad)
+                if params[n].grad != nothing
                     opt(params[n])
                 end
             end
 
             loss += sum(Array(z.data)) / batchsize
-            ProgressMeter.next!(prog)
+            next!(prog)
         end
         loss /= length(batches)
         @printf(stdout, "Loss: %.5f\n", loss)
@@ -101,13 +99,13 @@ function Decoder(config::Dict, iolog)
         prec, recall, fval = fscore(golds, preds)
 
         @printf(stdout, "Prec: %.5f, Recall: %.5f, Fscore: %.5f\n", prec, recall, fval)
-        @printf(iolog, "%s %s end epoch %d - loss:%.5f fval:%.5f prec:%.5f recall:%.5f\n", @logtime, procname, 
+        @printf(iolog, "%s %s end epoch %d - loss:%.5f fval:%.5f prec:%.5f recall:%.5f\n", @timestr, procname, 
                 epoch, loss, fval, prec, recall)
         flush(iolog)
         println()
     end
 
-    @printf(iolog, "%s %s training complete\n", @logtime, procname)
+    @printf(iolog, "%s %s training complete\n", @timestr, procname)
 
     if !oncpu()
         setcpu()
