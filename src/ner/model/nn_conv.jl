@@ -1,3 +1,6 @@
+
+using Printf: @sprintf
+
 using Merlin: istrain, todevice, parameter, Var
 using Merlin: lookup, max, concat, dropout, relu, softmax_crossentropy
 using Merlin: Linear, Conv1d
@@ -11,8 +14,22 @@ struct ConvNet
     model::Dict
 end
 
-function ConvNet(ntags::Int; nlayers::Int=2, winsize_c::Int=2, winsize_w::Int=5, droprate::Float64=0.1) where T
+function ConvNet(args::Dict)
+    ntags = get!(args, "nlayers", 128) 
+    nlayers = get!(args, "nlayers", 2) 
+    winsize_c = get!(args, "winsize_c", 2)
+    winsize_w = get!(args, "winsize_w", 5)
+    droprate = get!(args, "droprate", 0.1)
     ConvNet(ntags, nlayers, winsize_c, winsize_w, droprate, Dict())
+end
+
+function ConvNet(; ntags::Int=128, nlayers::Int=2, winsize_c::Int=2, winsize_w::Int=5, droprate::Float64=0.1)
+    ConvNet(ntags, nlayers, winsize_c, winsize_w, droprate, Dict())
+end
+
+function Base.string(nn::ConvNet)
+    @sprintf("%s <ntags:%d nlayers:%d winsize_c:%d winsize_w:%d droprate:%f>",  
+        "Conv", nn.ntags, nn.nlayers, nn.winsize_c, nn.winsize_w, nn.droprate)
 end
 
 function todevice!(nn::ConvNet)
@@ -30,7 +47,7 @@ function (nn::ConvNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::S
     # character conv
     c_conv = get!(nn.model, "c_conv", 
         todevice(Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c)))    
-    c = max(c_conv(c, x.batchdims_c), x.batchdims_c)
+    c = max(c_conv(c, x.dims_c), x.dims_c)
 
     # concatinate word and char
     h = concat(1, w, c)
@@ -39,7 +56,7 @@ function (nn::ConvNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::S
     for i in 1:nn.nlayers
         h_conv = get!(nn.model, string("h_conv_", string(i)), 
             todevice(Conv1d(T, nn.winsize_w * 2 + 1, size(h.data, 1), size(h.data, 1), padding=nn.winsize_w)))
-        h = relu(dropout(h_conv(h, x.batchdims_w), nn.droprate))
+        h = relu(dropout(h_conv(h, x.dims_w), nn.droprate))
     end
 
     # full connect

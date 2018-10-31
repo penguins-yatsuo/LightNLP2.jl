@@ -15,7 +15,7 @@ function Base.string(x::Sample)
         " t=", string(size(x.t)), string(x.t))
 end
 
-function create_batch(samples::Vector{Sample}, batchsize::Int, n_samples::Int=0)
+function create_batch(samples::Vector{Sample}, batchsize::Int, n_samples::Int=0; words)
     batches = Sample[]
 
     if n_samples == 0
@@ -32,7 +32,19 @@ function create_batch(samples::Vector{Sample}, batchsize::Int, n_samples::Int=0)
         t = s[1].t == nothing ? nothing : cat(dims=1, map(x -> x.t, s)...)
 
         w = w
+
+
+        println("w:$w")
+
+        if words != nothing
+            text = map(x -> words[x], w)
+            println("text:$text")
+        end
+
+        println("batchdims_w:$batchdims_w")
         batchdims_w = sort(batchdims_w, rev=true)
+        println("batchdims_w:$batchdims_w")
+        break
         c = c
         batchdims_c = batchdims_c
         t = t

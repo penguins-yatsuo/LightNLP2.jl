@@ -7,8 +7,9 @@ macro timestr()
 end
 
 include("BIOES.jl")
+include("dataset.jl")
 include("vocab.jl")
-include("sample.jl")
+# include("sample.jl")
 include("decoder.jl")
 include("model/argmax.jl")
 include("model/extends.jl")

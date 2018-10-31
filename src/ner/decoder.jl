@@ -2,7 +2,7 @@ using HDF5, ProgressMeter
 
 using Printf: @printf, @sprintf
 
-using Merlin: oncpu, setcpu, ongpu, setcuda, settrain
+using Merlin: oncpu, setcpu, ongpu, setcuda, settrain, isnothing
 using Merlin: shuffle!, gradient!, SGD
 
 mutable struct Decoder
@@ -12,36 +12,49 @@ mutable struct Decoder
     nn
 end
 
+function getarg!(args::Dict, key::String, default::Any)
+    (get!(args, key, default) == nothing) ? args[key] = default : args[key]
+end
 
-function Decoder(config::Dict, iolog)
-    chardict, charembeds, tagdict = initvocab(config["train_file"])
-    worddict, wordembeds = wordvec_read(config["wordvec_file"])
+function Decoder(args::Dict, iolog)
 
-    traindata = readdata(config["train_file"], worddict, chardict, tagdict)
-    testdata = readdata(config["test_file"], worddict, chardict, tagdict)
-    procname = @sprintf("NER[%s]", get!(config, "jobid", "-"))
+    nepochs = getarg!(args, "nepochs", 1)
+    batchsize = getarg!(args, "batchsize", 1)
+    n_train = getarg!(args, "ntrain", 0)
+    n_test = getarg!(args, "ntest", 0)
+    use_gpu = getarg!(args, "use_gpu", false)
 
-    nepochs = get!(config, "nepochs", 1)
-    batchsize = get!(config, "batchsize", 1)
-    n_train = get!(config, "ntrain", length(traindata))
-    n_test = get!(config, "ntest", length(testdata))
-    use_gpu = get!(config, "use_gpu", false)
 
-    if n_train == nothing || n_train < 1
-        n_train = length(traindata)
+    train_data = Dataset(args["wordvec_file"], args["train_file"], batchsize, n_train)
+
+    chardict = train_data.chardict
+    charembeds = train_data.char_embeds
+
+    words = train_data.words
+    worddict = train_data.worddict
+    wordembeds = train_data.word_embeds
+    tagdict = train_data.tagdict
+
+    test_data = Dataset(args["wordvec_file"], args["test_file"], batchsize, n_test)
+
+    # chardict, charembeds, tagdict = initvocab(args["train_file"])
+    # words, worddict, wordembeds = wordvec_read(args["wordvec_file"])
+
+    # traindata = readdata(args["train_file"], worddict, chardict, tagdict)
+    # testdata = readdata(args["test_file"], worddict, chardict, tagdict)
+    procname = @sprintf("NER[%s]", get!(args, "jobid", "-"))
+
+
+    nn = begin
+        lowercase(args["neural_network"]) == "conv" ? ConvNet(args) :
+        lowercase(args["neural_network"]) == "lstm" ? LstmNet(args) : nothing
     end
-    if n_test == nothing || n_test < 1
-        n_test = length(testdata)
-    end
 
-    @printf(iolog, "%s %s train - traindata:%d testdata:%d words:%d, chars:%d tags:%d\n", @timestr, procname, 
-            length(traindata), length(testdata), length(worddict), length(chardict), length(tagdict))
-    @printf(iolog, "%s %s nepochs:%d batchsize:%d n_train:%d n_test:%d\n", @timestr, procname, 
+    @printf(iolog, "%s %s model - %s\n", @timestr, procname, string(nn))
+    @printf(iolog, "%s %s data - traindata:%d testdata:%d words:%d chars:%d tags:%d\n", @timestr, procname, 
+            length(train_data), length(test_data), length(worddict), length(chardict), length(tagdict))
+    @printf(iolog, "%s %s train - nepochs:%d batchsize:%d n_train:%d n_test:%d\n", @timestr, procname, 
             nepochs, batchsize, n_train, n_test)
-
-    nn, nntext = create_model(config, length(tagdict))
-
-    @printf(iolog, "%s %s model - %s\n", @timestr, procname, nntext)
     flush(iolog)
 
     if use_gpu 
@@ -50,7 +63,7 @@ function Decoder(config::Dict, iolog)
     end
 
     opt = SGD()
-    test_batches = create_batch(testdata, batchsize, n_test)
+    test_batches = test_data.samples
 
     for epoch = 1:nepochs
         # train
@@ -59,24 +72,19 @@ function Decoder(config::Dict, iolog)
         @printf(iolog, "%s %s begin epoch %d\n", @timestr, procname, epoch)
         flush(iolog)
  
-        shuffle!(traindata)
-        batches = create_batch(traindata, batchsize, n_train)
-        opt.rate = config["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
+        shuffle!(train_data.samples)
+        batches = train_data.samples
+        opt.rate = args["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
 
-        prog = Progress(length(batches))
+        prog = ProgressMeter.Progress(length(batches))
         loss = 0.0
         for i in 1:length(batches)
             s = batches[i]
             z = nn(Float32, charembeds, wordembeds, s)
             params = gradient!(z)
-            for n in 1:length(params)
-                if params[n].grad != nothing
-                    opt(params[n])
-                end
-            end
-
-            loss += sum(Array(z.data)) / batchsize
-            next!(prog)
+            foreach(opt, filter(x -> !isnothing(x.grad), params))
+            loss += sum(Array(z.data)) / batchsize            
+            ProgressMeter.next!(prog)
         end
         loss /= length(batches)
         @printf(stdout, "Loss: %.5f\n", loss)
@@ -88,8 +96,8 @@ function Decoder(config::Dict, iolog)
         golds = Int[]
         for i in 1:length(test_batches)
             s = test_batches[i]
-            z = nn(Float32, charembeds, wordembeds, s)
-            append!(preds, z)
+            pred = nn(Float32, charembeds, wordembeds, s)
+            append!(preds, pred)
             append!(golds, s.t)
         end
         length(preds) == length(golds) || throw("Length mismatch: $(length(preds)), $(length(golds))")
@@ -115,11 +123,11 @@ function Decoder(config::Dict, iolog)
 end
 
 
-function decode(dec::Decoder, config::Dict)
+function decode(dec::Decoder, args::Dict)
     charembeds = Normal(0, 0.01)(Float32, 20, length(dec.chardict))
-    worddict, wordembeds = wordvec_read(config["wordvec_file"])
+    worddict, wordembeds = wordvec_read(args["wordvec_file"])
 
-    testdata = readdata(config["test_file"], worddict, dec.chardict, dec.tagdict)
+    testdata = readdata(args["test_file"], worddict, dec.chardict, dec.tagdict)
     
     test_batches = create_batch(testdata, 10)
     id2tag = Array{String}(length(dec.tagdict))
@@ -135,7 +143,7 @@ function decode(dec::Decoder, config::Dict)
         append!(preds, y)
     end
 
-    lines = open(readlines, config["test_file"])
+    lines = open(readlines, args["test_file"])
     i = 1
     for line in lines
         if !isempty(strip(line))
@@ -147,40 +155,6 @@ function decode(dec::Decoder, config::Dict)
         end
     end
 end
-
-function create_model(config::Dict, ntags)
-    nlayers = get!(config, "nlayers", 1) 
-    droprate = get!(config, "droprate", 0.2)
-
-    neural_network = lowercase(get!(config, "neural_network", "UNKNOWN"))
-
-    if neural_network == "conv" 
-        winsize_c = get!(config, "winsize_c", 2)
-        winsize_w = get!(config, "winsize_w", 5)
-
-        nn = ConvNet(ntags,
-            nlayers=nlayers, winsize_c=winsize_c, winsize_w=winsize_w, droprate=droprate)
-
-        text = @sprintf("%s (nlayers:%d winsize_c:%d winsize_w:%d droprate:%f)\n",  
-            neural_network, nlayers, winsize_c, winsize_w, droprate)
-
-    elseif neural_network == "lstm"
-        winsize_c = get!(config, "winsize_c", 2)
-        bidirectional = get!(config, "bidirectional", true)
-
-        nn = LstmNet(ntags,
-            nlayers=nlayers, winsize_c=winsize_c, bidirectional=bidirectional, droprate=droprate)
-
-        text = @sprintf("%s (nlayers:%d winsize_c:%d bidirectional:%s droprate:%f)\n", 
-            neural_network, nlayers, winsize_c, string(bidirectional), droprate)
-
-    else
-        throw(UndefVarError(:neural_network))
-    end
-
-    nn, text
-end
-
 
 function fscore(golds::Vector{T}, preds::Vector{T}) where T
     set = intersect(Set(golds), Set(preds))

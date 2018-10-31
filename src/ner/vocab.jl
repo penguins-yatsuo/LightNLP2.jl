@@ -38,7 +38,7 @@ function wordvec_read(path::String)
     words = h5read(path, "words")
     wordembeds = h5read(path, "vectors")
     worddict = Dict(words[i] => i for i=1:length(words))
-    worddict, wordembeds
+    words, worddict, wordembeds
 end
 
 function readdata(path::String, worddict::Dict, chardict::Dict, tagdict::Dict)
@@ -57,7 +57,6 @@ function readdata(path::String, worddict::Dict, chardict::Dict, tagdict::Dict)
             charids = Int[]
             batchdims_c = Int[]
             for w in words
-                #w0 = replace(lowercase(w), r"[0-9]", '0')
                 id = get(worddict, lowercase(w), unkword)
                 push!(wordids, id)
 
