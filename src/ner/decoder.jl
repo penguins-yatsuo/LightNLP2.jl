@@ -51,15 +51,15 @@ function Decoder(args::Dict, iolog)
     test_iter = SampleIterater(test_samples, batchsize, n_test, false)
 
     for epoch = 1:nepochs
-        # train
-        settrain(true)
         @printf(stdout, "Epoch: %d\n", epoch)
         @printf(iolog, "%s %s begin epoch %d\n", @timestr, procname, epoch)
         flush(iolog)
 
+        # train
+        settrain(true)
         train_iter = SampleIterater(train_samples, batchsize, n_test, false)
 
-        prog = ProgressMeter.Progress(length(train_iter))
+        prog = ProgressMeter.Progress(length(train_iter), desc="Train: ")
         opt.rate = args["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
 
         loss = 0.0
@@ -67,15 +67,15 @@ function Decoder(args::Dict, iolog)
             z = nn(Float32, embeds.char_embeds, embeds.word_embeds, s)
             params = gradient!(z)
             foreach(opt, filter(x -> !isnothing(x.grad), params))
-            loss += sum(Array(z.data)) / length(s.dims_w)
+            loss += sum(Array(z.data)) / length(s)
             ProgressMeter.next!(prog)
         end
         loss /= length(train_iter)
         @printf(stdout, "Loss: %.5f\n", loss)
 
         # test
-        settrain(false)
         @printf(stdout, "Test ")
+        settrain(false)
         preds = Int[]
         golds = Int[]
         for (i, s) in enumerate(test_iter)
@@ -83,7 +83,8 @@ function Decoder(args::Dict, iolog)
             append!(preds, pred)
             append!(golds, s.t)
         end
-        length(preds) == length(golds) || throw("Length mismatch: $(length(preds)), $(length(golds))")
+
+        @assert length(preds) == length(golds)
 
         preds = BIOES.span_decode(preds, tagdict)
         golds = BIOES.span_decode(golds, tagdict)

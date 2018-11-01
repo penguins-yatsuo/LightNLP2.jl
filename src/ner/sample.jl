@@ -6,6 +6,8 @@ struct Sample
     t::Vector{Int}
 end
 
+Base.length(x::Sample) = length(x.dims_w)
+
 function Base.string(x::Sample)
     string("Sample",
         " w=", string(size(x.w)), string(x.w),
