@@ -15,8 +15,8 @@ struct ConvNet
 end
 
 function ConvNet(args::Dict)
-    ntags = get!(args, "nlayers", 128) 
-    nlayers = get!(args, "nlayers", 2) 
+    ntags = get!(args, "nlayers", 128)
+    nlayers = get!(args, "nlayers", 2)
     winsize_c = get!(args, "winsize_c", 2)
     winsize_w = get!(args, "winsize_w", 5)
     droprate = get!(args, "droprate", 0.1)
@@ -28,7 +28,7 @@ function ConvNet(; ntags::Int=128, nlayers::Int=2, winsize_c::Int=2, winsize_w::
 end
 
 function Base.string(nn::ConvNet)
-    @sprintf("%s <ntags:%d nlayers:%d winsize_c:%d winsize_w:%d droprate:%f>",  
+    @sprintf("%s <ntags:%d nlayers:%d winsize_c:%d winsize_w:%d droprate:%f>",
         "Conv", nn.ntags, nn.nlayers, nn.winsize_c, nn.winsize_w, nn.droprate)
 end
 
@@ -45,8 +45,8 @@ function (nn::ConvNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::S
     w = todevice(parameter(lookup(embeds_w, x.w)))
 
     # character conv
-    c_conv = get!(nn.model, "c_conv", 
-        todevice(Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c)))    
+    c_conv = get!(nn.model, "c_conv",
+        todevice(Conv1d(T, nn.winsize_c * 2 + 1, size(c.data, 1), size(w.data, 1), padding=nn.winsize_c)))
     c = max(c_conv(c, x.dims_c), x.dims_c)
 
     # concatinate word and char
@@ -54,7 +54,7 @@ function (nn::ConvNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::S
 
     # hidden layers
     for i in 1:nn.nlayers
-        h_conv = get!(nn.model, string("h_conv_", string(i)), 
+        h_conv = get!(nn.model, string("h_conv_", string(i)),
             todevice(Conv1d(T, nn.winsize_w * 2 + 1, size(h.data, 1), size(h.data, 1), padding=nn.winsize_w)))
         h = relu(dropout(h_conv(h, x.dims_w), nn.droprate))
     end
@@ -62,7 +62,7 @@ function (nn::ConvNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::S
     # full connect
     fc = get!(nn.model, "fc", todevice(Linear(T, size(h.data, 1), nn.ntags)))
     o = relu(fc(h))
-      
+
     # result
     if istrain()
         softmax_crossentropy(todevice(Var(x.t)), o)
