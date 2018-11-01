@@ -67,7 +67,7 @@ function Decoder(args::Dict, iolog)
             z = nn(Float32, embeds.char_embeds, embeds.word_embeds, s)
             params = gradient!(z)
             foreach(opt, filter(x -> !isnothing(x.grad), params))
-            loss += sum(Array(z.data)) / batchsize
+            loss += sum(Array(z.data)) / length(s.dims_w)
             ProgressMeter.next!(prog)
         end
         loss /= length(train_iter)
@@ -103,7 +103,7 @@ function Decoder(args::Dict, iolog)
         todevice!(nn)
     end
 
-    Decoder(train_data.worddict, train_data.chardict, train_data.tagdict, nn)
+    Decoder(embeds.worddict, embeds.chardict, tagdict, nn)
 end
 
 

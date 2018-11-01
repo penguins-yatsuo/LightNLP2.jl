@@ -29,5 +29,5 @@ function Embeds(embeds_file::String; charvec_dim::Int=20)
 end
 
 function Base.string(embeds::Embeds)
-    string("Embeds words:", length(embeds.words), "chars:", length(embeds.words))
+    string("Embeds words:", length(embeds.words), " chars:", length(embeds.chars))
 end
