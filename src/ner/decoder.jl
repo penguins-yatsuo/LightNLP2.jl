@@ -19,13 +19,6 @@ end
 function Decoder(args::Dict, iolog)
     procname = @sprintf("NER[%s]", get!(args, "jobid", "-"))
 
-    # get args
-    nepochs = getarg!(args, "nepochs", 1)
-    batchsize = getarg!(args, "batchsize", 1)
-    n_train = getarg!(args, "ntrain", 0)
-    n_test = getarg!(args, "ntest", 0)
-    use_gpu = getarg!(args, "use_gpu", false)
-
     # read word embeds
     embeds = Embeds(args["wordvec_file"], charvec_dim=20)
 
@@ -33,7 +26,13 @@ function Decoder(args::Dict, iolog)
     train_samples, tagdict = load_samples(args["train_file"], embeds)
     test_samples, tagdict = load_samples(args["test_file"], embeds, tagdict)
 
-    args["ntags"] = length(tagdict)
+    # get args
+    use_gpu = getarg!(args, "use_gpu", 0)
+    nepochs = getarg!(args, "nepochs", 1)
+    batchsize = getarg!(args, "batchsize", 1)
+    ntags = getarg!(args, "ntags", length(tagdict))
+    n_train = getarg!(args, "ntrain", length(train_samples))
+    n_test = getarg!(args, "ntest", length(test_samples))
 
     # create neural network
     nn = begin
@@ -70,7 +69,7 @@ function Decoder(args::Dict, iolog)
 
         # train
         settrain(true)
-        train_iter = SampleIterater(train_samples, batchsize, n_test, false)
+        train_iter = SampleIterater(train_samples, batchsize, n_train, true)
 
         prog = ProgressMeter.Progress(length(train_iter), desc="Train: ")
         opt.rate = args["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
