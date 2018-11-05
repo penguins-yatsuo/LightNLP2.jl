@@ -15,7 +15,7 @@ struct ConvNet
 end
 
 function ConvNet(args::Dict)
-    ntags = get!(args, "nlayers", 128)
+    ntags = get!(args, "ntags", 128)
     nlayers = get!(args, "nlayers", 2)
     winsize_c = get!(args, "winsize_c", 2)
     winsize_w = get!(args, "winsize_w", 5)
@@ -41,6 +41,7 @@ function todevice!(nn::ConvNet)
 end
 
 function (nn::ConvNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::Sample) where T
+
     c = todevice(parameter(lookup(embeds_c, x.c)))
     w = todevice(parameter(lookup(embeds_w, x.w)))
 
@@ -67,6 +68,6 @@ function (nn::ConvNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::S
     if istrain()
         softmax_crossentropy(todevice(Var(x.t)), o)
     else
-        argmax(o)
+        argmax(o), softmax(o)
     end
 end
