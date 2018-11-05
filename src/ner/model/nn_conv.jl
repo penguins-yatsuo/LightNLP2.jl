@@ -2,7 +2,7 @@
 using Printf: @sprintf
 
 using Merlin: istrain, todevice, parameter, Var
-using Merlin: lookup, max, concat, dropout, relu, softmax_crossentropy
+using Merlin: lookup, max, concat, dropout, relu, softmax, softmax_crossentropy
 using Merlin: Linear, Conv1d
 
 struct ConvNet
