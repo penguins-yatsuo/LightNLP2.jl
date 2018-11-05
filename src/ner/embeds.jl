@@ -12,7 +12,7 @@ struct Embeds
 end
 
 UNKNOWN_WORD = "UNKNOWN"
-UNKNOWN_CHAR = Char(0)
+UNKNOWN_CHAR = Char(0) #NUL
 
 function Embeds(embeds_file::String; charvec_dim::Int=20)
     words = h5read(embeds_file, "words")
@@ -29,5 +29,5 @@ function Embeds(embeds_file::String; charvec_dim::Int=20)
 end
 
 function Base.string(embeds::Embeds)
-    string("Embeds words:", length(embeds.words), " chars:", length(embeds.chars))
+    string("words:", length(embeds.words), " chars:", length(embeds.chars))
 end
