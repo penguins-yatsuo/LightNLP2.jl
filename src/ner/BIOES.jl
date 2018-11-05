@@ -1,5 +1,10 @@
 module BIOES
 
+function decode(ids::Vector{Int}, tagdict::Dict{String, Int})
+    tags = Dict(i => tag for (tag, i) in pairs(tagdict))
+    map(i -> get(tags, i, "O"), ids)
+end
+
 function span_decode(ids::Vector{Int}, tagdict::Dict{String, Int})
     tags = Dict(i => tag for (tag, i) in pairs(tagdict))
     spans = Tuple{Int, Int, String}[]
