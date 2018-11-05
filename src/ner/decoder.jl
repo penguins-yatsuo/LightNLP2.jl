@@ -19,37 +19,50 @@ end
 function Decoder(args::Dict, iolog)
     procname = @sprintf("NER[%s]", get!(args, "jobid", "-"))
 
+    # get args
     nepochs = getarg!(args, "nepochs", 1)
     batchsize = getarg!(args, "batchsize", 1)
     n_train = getarg!(args, "ntrain", 0)
     n_test = getarg!(args, "ntest", 0)
     use_gpu = getarg!(args, "use_gpu", false)
 
+    # read word embeds
     embeds = Embeds(args["wordvec_file"], charvec_dim=20)
+
+    # read samples
     train_samples, tagdict = load_samples(args["train_file"], embeds)
     test_samples, tagdict = load_samples(args["test_file"], embeds, tagdict)
 
+    args["ntags"] = length(tagdict)
+
+    # create neural network
     nn = begin
         lowercase(args["neural_network"]) == "conv" ? ConvNet(args) :
         lowercase(args["neural_network"]) == "lstm" ? LstmNet(args) : nothing
     end
+
+    # optimizer
     opt = SGD()
 
+    # print job status
     @printf(iolog, "%s %s model - %s\n", @timestr, procname, string(nn))
     @printf(iolog, "%s %s embeds - %s\n", @timestr, procname, string(embeds))
     @printf(iolog, "%s %s data - traindata:%d testdata:%d tags:%d\n", @timestr, procname,
             length(train_samples), length(test_samples), length(tagdict))
-    @printf(iolog, "%s %s train - nepochs:%d batchsize:%d n_train:%d n_test:%d\n", @timestr, procname,
-            nepochs, batchsize, n_train, n_test)
+    @printf(iolog, "%s %s train - nepochs:%d batchsize:%d n_train:%d n_test:%d use_gpu:%s\n",
+            @timestr, procname, nepochs, batchsize, n_train, n_test, string(use_gpu))
     flush(iolog)
 
+    # GPU device setup
     if use_gpu
         setcuda(0)
         todevice!(nn)
     end
 
+    # test data iterator
     test_iter = SampleIterater(test_samples, batchsize, n_test, false)
 
+    # start train
     for epoch = 1:nepochs
         @printf(stdout, "Epoch: %d\n", epoch)
         @printf(iolog, "%s %s begin epoch %d\n", @timestr, procname, epoch)
@@ -67,38 +80,38 @@ function Decoder(args::Dict, iolog)
             z = nn(Float32, embeds.char_embeds, embeds.word_embeds, s)
             params = gradient!(z)
             foreach(opt, filter(x -> !isnothing(x.grad), params))
-            loss += sum(Array(z.data)) / length(s)
+            loss += sum(z.data) / length(s)
             ProgressMeter.next!(prog)
         end
         loss /= length(train_iter)
-        @printf(stdout, "Loss: %.5f\n", loss)
+        ProgressMeter.finish!(prog, showvalues=["Loss" => round(loss, digits=5)] )
 
         # test
-        @printf(stdout, "Test ")
+        @printf(stdout, "Test: ")
         settrain(false)
         preds = Int[]
         golds = Int[]
         for (i, s) in enumerate(test_iter)
-            pred = nn(Float32, embeds.char_embeds, embeds.word_embeds, s)
+            pred, probs = nn(Float32, embeds.char_embeds, embeds.word_embeds, s)
             append!(preds, pred)
             append!(golds, s.t)
         end
 
+        # evaluation of this epochs
         @assert length(preds) == length(golds)
-
-        preds = BIOES.span_decode(preds, tagdict)
-        golds = BIOES.span_decode(golds, tagdict)
-        prec, recall, fval = BIOES.fscore(golds, preds)
+        span_preds = BIOES.span_decode(preds, tagdict)
+        span_golds = BIOES.span_decode(golds, tagdict)
+        prec, recall, fval = BIOES.fscore(span_golds, span_preds)
 
         @printf(stdout, "Prec: %.5f, Recall: %.5f, Fscore: %.5f\n", prec, recall, fval)
         @printf(iolog, "%s %s end epoch %d - loss:%.5f fval:%.5f prec:%.5f recall:%.5f\n", @timestr, procname,
                 epoch, loss, fval, prec, recall)
         flush(iolog)
-        println()
     end
 
     @printf(iolog, "%s %s training complete\n", @timestr, procname)
 
+    # fetch model from GPU device
     if !oncpu()
         setcpu()
         todevice!(nn)
@@ -109,30 +122,31 @@ end
 
 
 function decode(dec::Decoder, args::Dict)
-    charembeds = Normal(0, 0.01)(Float32, 20, length(dec.chardict))
-    worddict, wordembeds = wordvec_read(args["wordvec_file"])
 
-    testdata = readdata(args["test_file"], worddict, dec.chardict, dec.tagdict)
+    # read word embeds
+    embeds = Embeds(args["wordvec_file"], charvec_dim=20)
 
-    test_batches = create_batch(testdata, 10)
-    id2tag = Array{String}(length(dec.tagdict))
-    for (k, v) in dec.tagdict
-        id2tag[v] = k
-    end
+    # read samples
+    samples, tagdict = load_samples(args["test_file"], embeds, dec.tagdict)
 
+    # iterator
+    test_iter = SampleIterater(samples, batchsize, n_test, false)
+
+    @printf(stdout, "Inference: ")
     settrain(false)
     preds = Int[]
-    for i in 1:length(test_batches)
-        s = test_batches[i]
-        y = dec.nn(Float32, charembeds, wordembeds, s)
-        append!(preds, y)
+    for (i, s) in enumerate(test_iter)
+        pred, probs = nn(Float32, embeds.char_embeds, embeds.word_embeds, s)
+        append!(preds, pred)
     end
+
+    pred_tags = BOIES.decode(preds)
 
     lines = open(readlines, args["test_file"])
     i = 1
     for line in lines
         if !isempty(strip(line))
-            tag = id2tag[preds[i]]
+            tag = pred_tags[i]
             println("$line\t$tag")
             i += 1
         else

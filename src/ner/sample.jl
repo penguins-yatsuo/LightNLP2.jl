@@ -21,7 +21,7 @@ function load_samples(path::String, embeds::Embeds, initial_tagdict::Dict{String
     load_samples(path, embeds.worddict, embeds.unknown_word, embeds.chardict, embeds.unknown_char, initial_tagdict)
 end
 
-function load_samples(path::String, worddict::Dict, unknown_word::String, chardict::Dict, unknown_char::String,
+function load_samples(path::String, worddict::Dict, unknown_word::String, chardict::Dict, unknown_char::Char,
         initial_tagdict::Dict{String, Int}=Dict{String, Int}())
 
     samples = Sample[]
@@ -33,7 +33,7 @@ function load_samples(path::String, worddict::Dict, unknown_word::String, chardi
     lines = open(readlines, path, "r")
     push!(lines, "")
 
-    wordids, charids, tagids, dims_c = Int[], Int[], Int[], Int[], Int[]
+    wordids, charids, tagids, dims_c = Int[], Int[], Int[], Int[]
     for i = 1:length(lines)
         line = lines[i]
 
@@ -46,19 +46,20 @@ function load_samples(path::String, worddict::Dict, unknown_word::String, chardi
 
             push!(samples, Sample(w, dims_w, c, dims_c, tagids))
 
-            wordids, charids, tagids, dims_c = Int[], Int[], Int[], Int[], Int[]
+            wordids, charids, tagids, dims_c = Int[], Int[], Int[], Int[]
         else
             items = Vector{String}(split(line,"\t"))
             word = strip(items[1])
-            push!(wordids, get(worddict, lowercase(word), unknown_wordid))
+            push!(wordids, get(worddict, word, unknown_wordid))
 
-            chars = map(string, Vector{Char}(word))
+            chars = Vector{Char}(word)
             append!(charids, map(c -> get(chardict, c, unknown_charid), chars))
             push!(dims_c, length(chars))
 
             if length(items) >= 2
                 tag = strip(items[2])
-                push!(tagids, get!(tagdict, tag, length(tagdict) + 1))
+                tagid = haskey(tagdict, tag) ? tagdict[tag] : (tagdict[tag] = length(tagdict) + 1)
+                push!(tagids, tagid)
             end
         end
     end
@@ -67,34 +68,47 @@ function load_samples(path::String, worddict::Dict, unknown_word::String, chardi
 end
 
 
-struct SampleIterater
+mutable struct SampleIterater
     samples
     batchsize
     n_samples
+    buffer
 end
 
 function SampleIterater(samples, batchsize::Int, n_samples::Int, shuffle::Bool)
     (n_samples < 1 || n_samples > length(samples)) && (n_samples = length(samples))
     shuffle && shuffle!(samples)
-    SampleIterater(samples, batchsize, n_samples)
+    SampleIterater(samples, batchsize, n_samples, nothing)
 end
 
-function Base.iterate(iter::SampleIterater, (element, i)=(batch_samples(iter, 1), 1))
-    if i > iter.n_samples || i > length(iter.samples)
+function init(iter::SampleIterater)
+    iter.buffer = Channel{Sample}(8)
+    offsets = range(1, step=iter.batchsize, length=length(iter))
+    task = @async foreach(i -> put!(iter.buffer, batch_samples(iter, i)), offsets)
+    bind(iter.buffer, task)
+
+    # return first element
+    take!(iter.buffer)
+end
+
+function Base.iterate(iter::SampleIterater, (element, i)=(init(iter), 1))
+    if !isopen(iter.buffer)
         nothing
     else
-        next_index = i + iter.batchsize
-        element, (batch_samples(iter, next_index), next_index)
+        i_next = i + iter.batchsize
+        element, (take!(iter.buffer), i_next)
     end
 end
 
 Base.length(iter::SampleIterater) = Int(ceil(iter.n_samples / iter.batchsize))
 Base.eltype(iter::SampleIterater) = Sample
 
-function batch_samples(iter::SampleIterater, i::Int)
-    (i > iter.n_samples || i > length(iter.samples)) && return nothing
+function batch_samples(iter::SampleIterater, offset::Int)
+    (offset > iter.n_samples || offset > length(iter.samples)) && return nothing
 
-    ss = iter.samples[i:min(i + (iter.batchsize - 1), iter.n_samples)]
+    ss = iter.samples[offset:min(offset + (iter.batchsize - 1), iter.n_samples)]
+
+    sort!(ss, rev=true, by=(s -> sum(s.dims_w)))
 
     w = cat(dims=2, map(x -> x.w, ss)...)
     c = cat(dims=2, map(x -> x.c, ss)...)

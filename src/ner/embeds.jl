@@ -12,14 +12,14 @@ struct Embeds
 end
 
 UNKNOWN_WORD = "UNKNOWN"
-UNKNOWN_CHAR = "UNKNOWN"
+UNKNOWN_CHAR = Char(0)
 
 function Embeds(embeds_file::String; charvec_dim::Int=20)
     words = h5read(embeds_file, "words")
     worddict = Dict(words[i] => i for i=1:length(words))
     word_embeds = h5read(embeds_file, "vectors")
 
-    chars = map(string, sort(collect(Set(Iterators.flatten(words)))))
+    chars = sort(collect(Set(Iterators.flatten(words))))
     push!(chars, UNKNOWN_CHAR)
 
     chardict = Dict(chars[i] => i for i=1:length(chars))
