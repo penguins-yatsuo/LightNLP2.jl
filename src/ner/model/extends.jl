@@ -1,18 +1,27 @@
 import Merlin
 
-function Merlin.todevice(f::Merlin.Conv1d)
-    Merlin.Conv1d(f.ksize, f.padding, f.stride, f.dilation, Merlin.todevice(f.W), Merlin.todevice(f.b))
+function Merlin.todevice(x::Nothing)
+    nothing
 end
 
-function Merlin.todevice(f::Merlin.Linear)
-    Merlin.Linear(Merlin.todevice(f.W), Merlin.todevice(f.b))
+function Merlin.todevice!(f::Merlin.Conv1d)
+    Merlin.todevice!(f.W)
+    Merlin.todevice!(f.b)
+    f
 end
 
-function Merlin.todevice(f::Merlin.LSTM)
-    Merlin.LSTM(f.insize, f.hsize, f.nlayers, f.droprate, f.bidir, map(w -> Merlin.todevice(w), f.weights))
+function Merlin.todevice!(f::Merlin.Linear)
+    Merlin.todevice!(f.W)
+    Merlin.todevice!(f.b)
+    f
 end
 
-function Base.string(x::Merlin.Var)   
+function Merlin.todevice!(f::Merlin.LSTM)
+    map(w -> Merlin.todevice!(w), f.weights)
+    f
+end
+
+function Base.string(x::Merlin.Var)
     string("Var",
         " data=", (x.data == nothing ? "nothing" : string(typeof(x.data), size(x.data))),
         " f=", (x.f == nothing ? "nothing" : string(x.f)),

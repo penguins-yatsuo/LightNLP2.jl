@@ -7,6 +7,8 @@ struct Sample
 end
 
 Base.length(x::Sample) = length(x.dims_w)
+word_length(x::Sample) = sum(x.dims_w)
+word_length(xs::Vector{Sample}) = sum(n_word, xs)
 
 function Base.string(x::Sample)
     string("Sample",
@@ -17,26 +19,24 @@ function Base.string(x::Sample)
         " t=", string(size(x.t)), string(x.t))
 end
 
-function load_samples(path::String, embeds::Embeds, initial_tagdict::Dict{String, Int}=Dict{String, Int}())
-    load_samples(path, embeds.worddict, embeds.unknown_word, embeds.chardict, embeds.unknown_char, initial_tagdict)
+function load_samples(path::String, embeds::Embeds, tagdict::Dict{String, Int}=Dict{String, Int}())
+    load_samples(path, embeds.worddict, embeds.unknown_word, embeds.chardict, embeds.unknown_char, tagdict)
 end
 
 function load_samples(path::String, worddict::Dict, unknown_word::String, chardict::Dict, unknown_char::Char,
-        initial_tagdict::Dict{String, Int}=Dict{String, Int}())
+        tagdict::Dict{String, Int}=Dict{String, Int}(), unknown_tag::String="O")
 
     samples = Sample[]
 
     unknown_wordid = worddict[unknown_word]
     unknown_charid = chardict[unknown_char]
-    tagdict = copy(initial_tagdict)
+    unknown_tagid = tagdict[unknown_tag]
 
     lines = open(readlines, path, "r")
     push!(lines, "")
 
     wordids, charids, tagids, dims_c = Int[], Int[], Int[], Int[]
-    for i = 1:length(lines)
-        line = lines[i]
-
+    for line in lines
         if isempty(line)
             isempty(wordids) && continue
 
@@ -58,13 +58,12 @@ function load_samples(path::String, worddict::Dict, unknown_word::String, chardi
 
             if length(items) >= 2
                 tag = strip(items[2])
-                tagid = haskey(tagdict, tag) ? tagdict[tag] : (tagdict[tag] = length(tagdict) + 1)
-                push!(tagids, tagid)
+                push!(tagids, get(tagdict, tag, unknown_tagid))
             end
         end
     end
 
-    samples, tagdict
+    samples
 end
 
 
@@ -72,7 +71,7 @@ mutable struct SampleIterater
     samples
     batchsize
     n_samples
-    buffer
+    channel
 end
 
 function SampleIterater(samples, batchsize::Int, n_samples::Int, shuffle::Bool)
@@ -81,23 +80,22 @@ function SampleIterater(samples, batchsize::Int, n_samples::Int, shuffle::Bool)
     SampleIterater(samples, batchsize, n_samples, nothing)
 end
 
-function init(iter::SampleIterater)
-    iter.buffer = Channel{Sample}(8)
+function init!(iter::SampleIterater)
+    iter.channel = Channel{Sample}(8)
     offsets = range(1, step=iter.batchsize, length=length(iter))
-    task = @async foreach(i -> put!(iter.buffer, batch_samples(iter, i)), offsets)
-    bind(iter.buffer, task)
+    task = @async foreach(i -> put!(iter.channel, batch_samples(iter, i)), offsets)
+    bind(iter.channel, task)
 
     # return first element
-    take!(iter.buffer)
+    take!(iter.channel)
 end
 
-function Base.iterate(iter::SampleIterater, (element, i)=(init(iter), 1))
-    if !isopen(iter.buffer)
-        nothing
-    else
-        i_next = i + iter.batchsize
-        element, (take!(iter.buffer), i_next)
-    end
+function next!(iter::SampleIterater)
+    (isopen(iter.channel) || isready(iter.channel)) ? take!(iter.channel) : nothing
+end
+
+function Base.iterate(iter::SampleIterater, (el, i)=(init!(iter), 1))
+    (el != nothing) ? (el, (next!(iter), i + iter.batchsize)) : nothing
 end
 
 Base.length(iter::SampleIterater) = Int(ceil(iter.n_samples / iter.batchsize))

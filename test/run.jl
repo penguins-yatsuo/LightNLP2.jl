@@ -1,7 +1,8 @@
 using ArgParse
 
 using LightNLP2
-using JLD2, FileIO
+using LightNLP2.NER: Decoder, train!, decode, save, load
+
 
 function get_args()
     s = ArgParseSettings(
@@ -12,7 +13,7 @@ function get_args()
             help = "neural network type (conv|lstm)"
             required = true
         "--model"
-            help = "path of traind model file (JLD2)"
+            help = "path of traind model file"
             required = true
         "--training"
             help = "do training"
@@ -27,10 +28,10 @@ function get_args()
             help = "path of word embeds file (HDF5)"
             default = "wordvec.hdf5"
         "--train-file"
-            help = "path of train data file (CONLL)"
+            help = "path of train data file (BIOES)"
             default = "train.bioes"
         "--test-file"
-            help = "path of test data file (CONLL)"
+            help = "path of test data file (BIOES)"
             default = "test.bioes"
         "--nepochs"
             help = "number of epochs"
@@ -82,19 +83,35 @@ function main()
 
     modelfile = args["model"]
 
-    iolog = (haskey(args, "logfile") && args["logfile"] != "stdout" 
+    iolog = (haskey(args, "logfile") && args["logfile"] != "stdout"
                 ? open(args["logfile"], "a") : stdout)
 
     if args["training"]
 
-        decoder = LightNLP2.NER.Decoder(args, iolog)
-        save(modelfile, "decoder", decoder)    
+        model = Decoder()
+        train!(model, args, iolog)
+        save(model, modelfile)
+
+        open("debug.save.model", "w") do io
+            write(io, string(model.net.L["c_conv"]))
+            write(io, string(model.net.L["h_conv_1"]))
+            write(io, string(model.net.L["h_conv_2"]))
+            write(io, string(model.net.L["fc"]))
+        end
+
 
     else
 
-        decoder = load(modelfile, "decoder")
-        LightNLP.NER.decode(decoder, args)
+        model = Decoder(modelfile)
 
+        open("debug.load.model", "w") do io
+            write(io, string(model.net.L["c_conv"]))
+            write(io, string(model.net.L["h_conv_1"]))
+            write(io, string(model.net.L["h_conv_2"]))
+            write(io, string(model.net.L["fc"]))
+        end
+
+        decode(model, args)
     end
 
     close(iolog)

@@ -1,6 +1,7 @@
 import Merlin: Normal
+import HDF5: h5read
 
-struct Embeds
+mutable struct Embeds
     words
     worddict
     word_embeds
@@ -21,7 +22,6 @@ function Embeds(embeds_file::String; charvec_dim::Int=20)
 
     chars = sort(collect(Set(Iterators.flatten(words))))
     push!(chars, UNKNOWN_CHAR)
-
     chardict = Dict(chars[i] => i for i=1:length(chars))
     char_embeds = Merlin.Normal(0, 0.01)(Float32, charvec_dim, length(chardict))
 
