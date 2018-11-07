@@ -1,12 +1,7 @@
-using ArgParse
-
-using LightNLP2
-using LightNLP2.NER: Decoder, train!, decode, save, load
-
+using LightNLP2, Merlin, ArgParse
 
 function get_args()
-    s = ArgParseSettings(
-        autofix_names=true)
+    s = ArgParseSettings(autofix_names=true)
 
     @add_arg_table s begin
         "--neural-network"
@@ -88,30 +83,15 @@ function main()
 
     if args["training"]
 
-        model = Decoder()
+        model = LightNLP2.Decoder()
         train!(model, args, iolog)
         save(model, modelfile)
 
-        open("debug.save.model", "w") do io
-            write(io, string(model.net.L["c_conv"]))
-            write(io, string(model.net.L["h_conv_1"]))
-            write(io, string(model.net.L["h_conv_2"]))
-            write(io, string(model.net.L["fc"]))
-        end
-
-
     else
 
-        model = Decoder(modelfile)
-
-        open("debug.load.model", "w") do io
-            write(io, string(model.net.L["c_conv"]))
-            write(io, string(model.net.L["h_conv_1"]))
-            write(io, string(model.net.L["h_conv_2"]))
-            write(io, string(model.net.L["fc"]))
-        end
-
-        decode(model, args)
+        model = LightNLP2.Decoder(modelfile)
+        results = decode(model, args, iolog)
+        # foreach(t -> println(stdout, t), results)
     end
 
     close(iolog)

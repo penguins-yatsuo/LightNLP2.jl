@@ -20,10 +20,6 @@ function LstmNet(args::Dict)
     LstmNet(ntags, nlayers, winsize_c, droprate, bidirectional, Dict())
 end
 
-function LstmNet(; ntags::Int=128, nlayers::Int=2, winsize_c::Int=2, bidirectional::Bool=true, droprate::Float64=0.1) where T
-    LstmNet(ntags, nlayers, winsize_c, droprate, bidirectional, Dict())
-end
-
 function Base.string(net::LstmNet)
     @sprintf("%s <ntags:%d nlayers:%d winsize_c:%d bidirectional:%s droprate:%f>",
         "LSTM", net.ntags, net.nlayers, net.winsize_c, string(net.bidirectional), net.droprate)

@@ -23,10 +23,6 @@ function ConvNet(args::Dict)
     ConvNet(ntags, nlayers, winsize_c, winsize_w, droprate, Dict())
 end
 
-function ConvNet(; ntags::Int=128, nlayers::Int=2, winsize_c::Int=2, winsize_w::Int=5, droprate::Float64=0.1)
-    ConvNet(ntags, nlayers, winsize_c, winsize_w, droprate, Dict())
-end
-
 function Base.string(net::ConvNet)
     @sprintf("%s <ntags:%d nlayers:%d winsize_c:%d winsize_w:%d droprate:%f>",
         "Conv", net.ntags, net.nlayers, net.winsize_c, net.winsize_w, net.droprate)
@@ -41,7 +37,6 @@ function Merlin.todevice!(net::ConvNet)
 end
 
 function (net::ConvNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::Sample) where T
-
     c = todevice(parameter(lookup(embeds_c, x.c)))
     w = todevice(parameter(lookup(embeds_w, x.w)))
 

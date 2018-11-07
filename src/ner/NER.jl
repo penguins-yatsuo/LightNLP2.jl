@@ -1,5 +1,3 @@
-module NER
-
 using Dates: format, now
 
 macro timestr()
@@ -14,5 +12,3 @@ include("model/argmax.jl")
 include("model/extends.jl")
 include("model/nn_conv.jl")
 include("model/nn_lstm.jl")
-
-end # module NER

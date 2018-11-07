@@ -19,18 +19,17 @@ function Base.string(x::Sample)
         " t=", string(size(x.t)), string(x.t))
 end
 
-function load_samples(path::String, embeds::Embeds, tagdict::Dict{String, Int}=Dict{String, Int}())
-    load_samples(path, embeds.worddict, embeds.unknown_word, embeds.chardict, embeds.unknown_char, tagdict)
-end
+function load_samples(path::String, words::Vector{String}, chars::Vector{Char}, tags::Vector{String})
 
-function load_samples(path::String, worddict::Dict, unknown_word::String, chardict::Dict, unknown_char::Char,
-        tagdict::Dict{String, Int}=Dict{String, Int}(), unknown_tag::String="O")
+    word_dic = Dict(words[i] => i for i in 1:length(words))
+    char_dic = Dict(chars[i] => i for i in 1:length(chars))
+    tag_dic = Dict(tags[i] => i for i in 1:length(tags))
+
+    unknown_w = length(words)
+    unknown_c = length(chars)
+    unknown_t = length(tags)
 
     samples = Sample[]
-
-    unknown_wordid = worddict[unknown_word]
-    unknown_charid = chardict[unknown_char]
-    unknown_tagid = tagdict[unknown_tag]
 
     lines = open(readlines, path, "r")
     push!(lines, "")
@@ -50,15 +49,15 @@ function load_samples(path::String, worddict::Dict, unknown_word::String, chardi
         else
             items = Vector{String}(split(line,"\t"))
             word = strip(items[1])
-            push!(wordids, get(worddict, word, unknown_wordid))
+            push!(wordids, get(word_dic, word, unknown_w))
 
             chars = Vector{Char}(word)
-            append!(charids, map(c -> get(chardict, c, unknown_charid), chars))
+            append!(charids, map(c -> get(char_dic, c, unknown_c), chars))
             push!(dims_c, length(chars))
 
             if length(items) >= 2
                 tag = strip(items[2])
-                push!(tagids, get(tagdict, tag, unknown_tagid))
+                push!(tagids, get(tag_dic, tag, unknown_t))
             end
         end
     end
@@ -71,13 +70,14 @@ mutable struct SampleIterater
     samples
     batchsize
     n_samples
+    sort
     channel
 end
 
-function SampleIterater(samples, batchsize::Int, n_samples::Int, shuffle::Bool)
+function SampleIterater(samples, batchsize::Int, n_samples::Int; shuffle::Bool=false, sort::Bool=false)
     (n_samples < 1 || n_samples > length(samples)) && (n_samples = length(samples))
     shuffle && shuffle!(samples)
-    SampleIterater(samples, batchsize, n_samples, nothing)
+    SampleIterater(samples, batchsize, n_samples, sort, nothing)
 end
 
 function init!(iter::SampleIterater)
@@ -105,8 +105,7 @@ function batch_samples(iter::SampleIterater, offset::Int)
     (offset > iter.n_samples || offset > length(iter.samples)) && return nothing
 
     ss = iter.samples[offset:min(offset + (iter.batchsize - 1), iter.n_samples)]
-
-    sort!(ss, rev=true, by=(s -> sum(s.dims_w)))
+    iter.sort && sort!(ss, rev=true, by=(s -> sum(s.dims_w)))
 
     w = cat(dims=2, map(x -> x.w, ss)...)
     c = cat(dims=2, map(x -> x.c, ss)...)

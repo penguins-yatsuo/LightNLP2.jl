@@ -1,33 +1,20 @@
 import Merlin: Normal
 import HDF5: h5read
 
-mutable struct Embeds
-    words
-    worddict
-    word_embeds
-    unknown_word
-    chars
-    chardict
-    char_embeds
-    unknown_char
-end
+import Statistics: mean
 
-UNKNOWN_WORD = "UNKNOWN"
-UNKNOWN_CHAR = Char(0) #NUL
+UNKNOWN_CHAR = Char(0xfffd) # Unicode U+fffd 'REPLACEMENT CHARACTER'
+UNKNOWN_WORD = string(UNKNOWN_CHAR)
 
-function Embeds(embeds_file::String; charvec_dim::Int=20)
+function load_embeds(embeds_file::String; csize::Int=20)
     words = h5read(embeds_file, "words")
-    worddict = Dict(words[i] => i for i=1:length(words))
-    word_embeds = h5read(embeds_file, "vectors")
+    wordvecs = h5read(embeds_file, "vectors")
 
-    chars = sort(collect(Set(Iterators.flatten(words))))
-    push!(chars, UNKNOWN_CHAR)
-    chardict = Dict(chars[i] => i for i=1:length(chars))
-    char_embeds = Merlin.Normal(0, 0.01)(Float32, charvec_dim, length(chardict))
+    push!(words, UNKNOWN_WORD)
+    wordvecs = hcat(wordvecs, mean(wordvecs, dims=2))
 
-    Embeds(words, worddict, word_embeds, UNKNOWN_WORD, chars, chardict, char_embeds, UNKNOWN_CHAR)
-end
+    chars = sort(collect(Set(Iterators.flatten(words))));
+    chavecs = Merlin.Normal(0, 0.01)(Float32, csize, length(chars))
 
-function Base.string(embeds::Embeds)
-    string("words:", length(embeds.words), " chars:", length(embeds.chars))
+    words, wordvecs, chars, chavecs
 end
