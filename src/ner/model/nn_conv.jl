@@ -1,5 +1,5 @@
 
-using Printf: @sprintf
+import Formatting
 
 using Merlin: istrain, todevice, todevice!, parameter, Var
 using Merlin: lookup, max, concat, dropout, relu, softmax, softmax_crossentropy
@@ -24,8 +24,8 @@ function ConvNet(args::Dict)
 end
 
 function Base.string(net::ConvNet)
-    @sprintf("%s <ntags:%d nlayers:%d winsize_c:%d winsize_w:%d droprate:%f>",
-        "Conv", net.ntags, net.nlayers, net.winsize_c, net.winsize_w, net.droprate)
+    Formatting.format("Conv <ntags:{1} nlayers:{2} winsize_c:{3} winsize_w:{4} droprate:{5:.2f}>",
+        net.ntags, net.nlayers, net.winsize_c, net.winsize_w, net.droprate)
 end
 
 function Merlin.todevice!(net::ConvNet)

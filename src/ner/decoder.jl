@@ -1,13 +1,10 @@
 export Decoder, save, load, train!, decode
 
-import ProgressMeter
-
-using Printf: @printf, @sprintf
+import ProgressMeter, Formatting
+using Formatting: printfmt, printfmtln
 using JLD2: JLDWriteSession, jldopen, read, write
-
 using Merlin: oncpu, setcpu, ongpu, setcuda, settrain, isnothing
 using Merlin: shuffle!, gradient!, SGD
-
 
 mutable struct Decoder
     words::Vector{String}
@@ -39,8 +36,8 @@ function load(fname::String)
     end
 end
 
-function train!(m::Decoder, args::Dict, iolog=stdout)
-    procname = @sprintf("NER[%s]", get!(args, "jobid", "-"))
+function train!(m::Decoder, args::Dict, iolog=stderr)
+    procname = Formatting.format("NER[{1}]", get!(args, "jobid", "-"))
 
     # read samples
     train_samples = load_samples(args["train_file"], m.words, m.chars, m.tags)
@@ -64,14 +61,13 @@ function train!(m::Decoder, args::Dict, iolog=stdout)
     opt = SGD()
 
     # print job status
-    @printf(iolog, "%s %s model - %s\n", @timestr, procname, string(m.net))
-    @printf(iolog, "%s %s embeds - words:%d chars:%d\n", @timestr, procname,
+    printfmtln(iolog, "{1} {2} model - {3}", @timestr, procname, string(m.net))
+    printfmtln(iolog, "{1} {2} embeds - words:{3} chars:{4}", @timestr, procname,
             length(m.wordvecs), length(m.charvecs))
-    @printf(iolog, "%s %s data - traindata:%d testdata:%d\n", @timestr, procname,
+    printfmtln(iolog, "{1} {2} data - traindata:{3} testdata:{4}", @timestr, procname,
             length(train_samples), length(test_samples))
-    @printf(iolog, "%s %s train - nepochs:%d batchsize:%d n_train:%d n_test:%d use_gpu:%s\n",
+    printfmtln(iolog, "{1} {2} train - nepochs:{3} batchsize:{4} n_train:{5} n_test:{6} use_gpu:{7}",
             @timestr, procname, nepochs, batchsize, n_train, n_test, string(use_gpu))
-    flush(iolog)
 
     # GPU device setup
     if use_gpu
@@ -84,9 +80,8 @@ function train!(m::Decoder, args::Dict, iolog=stdout)
 
     # start train
     for epoch = 1:nepochs
-        @printf(stdout, "Epoch: %d\n", epoch)
-        @printf(iolog, "%s %s begin epoch %d\n", @timestr, procname, epoch)
-        flush(iolog)
+        printfmtln(stderr, "Epoch: {1}", epoch)
+        printfmtln(iolog, "{1} {2} begin epoch {3}", @timestr, procname, epoch)
 
         # train
         settrain(true)
@@ -104,10 +99,11 @@ function train!(m::Decoder, args::Dict, iolog=stdout)
             ProgressMeter.next!(progress)
         end
         loss /= length(train_iter)
-        ProgressMeter.finish!(progress, showvalues=["Loss" => round(loss, digits=5)] )
+        ProgressMeter.finish!(progress)
+        printfmt(stderr, "Loss: {1:.5f} ", loss)
 
         # test
-        @printf(stdout, "Test: ")
+        # @printf(stderr, "Test: ")
         settrain(false)
         preds = Int[]
         golds = Int[]
@@ -118,18 +114,16 @@ function train!(m::Decoder, args::Dict, iolog=stdout)
         end
 
         # evaluation of this epochs
-        @assert length(preds) == length(golds)
         span_preds = span_decode(preds, m.tags)
         span_golds = span_decode(golds, m.tags)
         prec, recall, fval = fscore(span_golds, span_preds)
 
-        @printf(stdout, "Prec: %.5f, Recall: %.5f, Fscore: %.5f\n", prec, recall, fval)
-        @printf(iolog, "%s %s end epoch %d - loss:%.5f fval:%.5f prec:%.5f recall:%.5f\n", @timestr, procname,
-                epoch, loss, fval, prec, recall)
-        flush(iolog)
+        printfmtln(stderr, "Prec: {1:.5f} Recall: {2:.5f} Fscore: {3:.5f}", prec, recall, fval)
+        printfmtln(iolog, "{1} {2} end epoch {3} - loss:{4:.5f} fval:{5:.5f} prec:{6:.5f} recall:{7:.5f}",
+            @timestr, procname, epoch, loss, fval, prec, recall)
     end
 
-    @printf(iolog, "%s %s training complete\n", @timestr, procname)
+    printfmtln(iolog, "{1} {2} training complete", @timestr, procname)
 
     # fetch model from GPU device
     if !oncpu()
@@ -139,8 +133,8 @@ function train!(m::Decoder, args::Dict, iolog=stdout)
 end
 
 
-function decode(m::Decoder, args::Dict, iolog=stdout)
-    procname = @sprintf("NER[%s]", get!(args, "jobid", "-"))
+function decode(m::Decoder, args::Dict, iolog=stderr)
+    procname = Formatting.format("NER[{1}]", get!(args, "jobid", "-"))
 
     # read samples
     samples = load_samples(args["test_file"], m.words, m.chars, m.tags)
@@ -149,7 +143,7 @@ function decode(m::Decoder, args::Dict, iolog=stdout)
     use_gpu = getarg!(args, "use_gpu", 0)
     n_pred = length(samples)
 
-    @printf(iolog, "%s %s decode - n_pred:%d use_gpu:%s\n",
+    printfmtln(iolog, "{1} {2} decode - n_pred:{3} use_gpu:{4}",
             @timestr, procname, n_pred, string(use_gpu))
 
     # GPU device setup
@@ -160,7 +154,6 @@ function decode(m::Decoder, args::Dict, iolog=stdout)
 
     # iterator
     pred_iter = SampleIterater(samples, 1, n_pred, shuffle=false, sort=false)
-
     progress = ProgressMeter.Progress(length(pred_iter), desc="Decode: ")
 
     settrain(false)
@@ -173,8 +166,7 @@ function decode(m::Decoder, args::Dict, iolog=stdout)
         ProgressMeter.next!(progress)
     end
     ProgressMeter.finish!(progress)
-
-    @printf(iolog, "%s %s decode complete\n", @timestr, procname)
+    printfmtln(iolog, "`{1} {2} decode complete", @timestr, procname)
 
     merge_decode(readlines(args["test_file"]), m.tags, preds, probs)
 end

@@ -1,5 +1,5 @@
 
-using Printf: @sprintf
+import Formatting
 
 using Merlin: istrain, todevice, todevice!, parameter, Var
 using Merlin: lookup, max, concat, relu, softmax, softmax_crossentropy
@@ -24,8 +24,8 @@ function LstmNet(args::Dict)
 end
 
 function Base.string(net::LstmNet)
-    @sprintf("%s <ntags:%d nlayers:%d winsize_c:%d bidirectional:%s droprate:%f>",
-        "LSTM", net.ntags, net.nlayers, net.winsize_c, string(net.bidirectional), net.droprate)
+    Formatting.format("LSTM <ntags:{1} nlayers:{2} winsize_c:{3} bidirectional:{4} droprate:{5:.2f}>",
+        net.ntags, net.nlayers, net.winsize_c, string(net.bidirectional), net.droprate)
 end
 
 function Merlin.todevice!(net::LstmNet)

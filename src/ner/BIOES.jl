@@ -1,5 +1,4 @@
-
-using Printf: @sprintf
+import Formatting
 
 function load_samples(path::String, words::Vector{String}, chars::Vector{Char}, tags::Vector{String})
 
@@ -51,17 +50,17 @@ end
 function span_decode(ids::Vector{Int}, tags::Vector{String})
     spans = Tuple{Int, Int, String}[]
     bpos = 0
-    for i = 1:length(ids)
-        tag = tags[ids[i]]
+    for pos in 1:length(ids)
+        tag = tags[ids[pos]]
         tag == "O" && continue
 
-        startswith(tag, "B") && (bpos = i)
-        startswith(tag, "S") && (bpos = i)
+        startswith(tag, "B") && (bpos = pos)
+        startswith(tag, "S") && (bpos = pos)
 
         if startswith(tag, "S") || (startswith(tag, "E") && (bpos > 0))
-            tag = tags[ids[bpos]]
-            basetag = (length(tag) > 2) ? tag[3:end] : ""
-            push!(spans, (bpos, i, basetag))
+            btag = tags[ids[bpos]]
+            suffix = (length(btag) > 2) ? btag[3:end] : ""
+            push!(spans, (bpos, pos, suffix))
             bpos = 0
         end
     end
@@ -74,7 +73,7 @@ function merge_decode(lines::Vector{String}, tags::Vector{String}, preds::Matrix
     for line in lines
         if !isempty(strip(line))
             tag = join(map(t -> tags[t], view(preds, :, i)), "\t")
-            prob = join(map(p -> @sprintf("%.2f", round(p, digits=3)), view(probs, :, i)), "\t")
+            prob = join(map(p -> Formatting.format("{1:.2f}", p), view(probs, :, i)), "\t")
             push!(merged, "$line\t$tag\t$prob")
             i += 1
         else
