@@ -50,7 +50,7 @@ function (net::ConvNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::
 
     # hidden layers
     for i in 1:net.nlayers
-        h_conv = get!(net.L, string("h_conv_", string(i)),
+        h_conv = get!(net.L, "h_conv_$i",
             todevice!(Conv1d(T, net.winsize_w * 2 + 1, size(h.data, 1), size(h.data, 1), padding=net.winsize_w)))
         h = relu(dropout(h_conv(h, x.dims_w), net.droprate))
     end
