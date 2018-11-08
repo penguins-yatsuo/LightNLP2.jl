@@ -82,8 +82,9 @@ function main()
                 ? open(args["logfile"], "a") : stdout)
 
     if args["training"]
-
-        model = LightNLP2.Decoder()
+        tags = split(args["tags"], ",")
+        words, wordvecs, chars, charvecs = LightNLP2.load_embeds(args["wordvec_file"]; csize=20)
+        model = LightNLP2.Decoder(words, wordvecs, chars, charvecs, tags)
         train!(model, args, iolog)
         save(model, modelfile)
 

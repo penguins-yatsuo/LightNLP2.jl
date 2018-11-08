@@ -19,8 +19,8 @@ mutable struct Decoder
     net
 end
 
-function Decoder(tags::Vector{String}=["B", "I", "E", "S", "O"])
-    Decoder(String[], Matrix{Float32}(undef, 0, 0), Char[], Matrix{Float32}(undef, 0, 0), tags, nothing)
+function Decoder(words, wordvecs, chars, charvecs, tags)
+    Decoder(words, wordvecs, chars, charvecs, tags, nothing)
 end
 
 function Decoder(fname::String)
@@ -42,9 +42,6 @@ end
 
 function train!(m::Decoder, args::Dict, iolog=stdout)
     procname = @sprintf("NER[%s]", get!(args, "jobid", "-"))
-
-    # read word embeds
-    m.words, m.wordvecs, m.chars, m.charvecs = load_embeds(args["wordvec_file"]; csize=20)
 
     # read samples
     train_samples = load_samples(args["train_file"], m.words, m.chars, m.tags)
