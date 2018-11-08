@@ -1,3 +1,6 @@
+
+using Printf: @sprintf
+
 using Merlin: istrain, todevice, todevice!, parameter, Var
 using Merlin: lookup, max, concat, relu, softmax, softmax_crossentropy
 using Merlin: Linear, Conv1d, LSTM
@@ -46,11 +49,9 @@ function (net::LstmNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::
     h = concat(1, w, c)
 
     # hidden layers
-    for i in 1:net.nlayers
-        h_lstm = get!(net.L, string("h_lstm_", string(i)),
-            todevice!(LSTM(T, size(h.data, 1), size(h.data, 1), 1, net.droprate, net.bidirectional)))
-        h = relu(h_lstm(h, x.dims_w))
-    end
+    h_lstm = get!(net.L, "h_lstm",
+        todevice!(LSTM(T, size(h.data, 1), size(h.data, 1), net.nlayers, net.droprate, net.bidirectional)))
+    h = relu(h_lstm(h, x.dims_w))
 
     # full connect
     fc = get!(net.L, "fc", todevice!(Linear(T, size(h.data, 1), net.ntags)))
@@ -60,6 +61,7 @@ function (net::LstmNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::
     if istrain()
         softmax_crossentropy(todevice(Var(x.t)), o)
     else
-        argmax(o), softmax(o)
+        p = softmax(o)
+        argmax(o), Array(p.data)
     end
 end
