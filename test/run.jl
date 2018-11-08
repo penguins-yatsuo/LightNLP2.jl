@@ -16,9 +16,9 @@ function get_args()
         "--jobid"
             help = "job identification"
             default = "-"
-        "--logfile"
-            help = "logfile"
-            default = "stdout"
+        "--log"
+            help = "log"
+            default = "stderr"
         "--wordvec-file"
             help = "path of word embeds file (HDF5)"
             default = "wordvec.hdf5"
@@ -65,6 +65,9 @@ function get_args()
         "--ntest"
             help = "Count of test data"
             arg_type = Int
+        "--tags"
+            help = "List of Tags. (Comma seperated string)"
+            default = "B,I,O,E,S"
         "--verbose", "-v"
             help = "print verbose output"
             action = :store_true
@@ -73,13 +76,11 @@ function get_args()
 end
 
 function main()
-
     args = get_args()
 
     modelfile = args["model"]
-
-    iolog = (haskey(args, "logfile") && args["logfile"] != "stdout"
-                ? open(args["logfile"], "a") : stdout)
+    iolog = (haskey(args, "logfile") && args["logfile"] != "stderr"
+                ? open(args["logfile"], "a") : stderr)
 
     if args["training"]
         tags = split(args["tags"], ",")
@@ -87,9 +88,7 @@ function main()
         model = LightNLP2.Decoder(words, wordvecs, chars, charvecs, tags)
         train!(model, args, iolog)
         save(model, modelfile)
-
     else
-
         model = LightNLP2.Decoder(modelfile)
         results = decode(model, args, iolog)
         foreach(t -> println(stdout, t), results)

@@ -1,7 +1,6 @@
 export Decoder, save, load, train!, decode
 
-
-using ProgressMeter
+import ProgressMeter
 
 using Printf: @printf, @sprintf
 using JLD2: JLDWriteSession, jldopen, read, write
@@ -150,8 +149,8 @@ function decode(m::Decoder, args::Dict, iolog=stdout)
     use_gpu = getarg!(args, "use_gpu", 0)
     n_pred = length(samples)
 
-    @printf(iolog, "%s %s decode - batchsize:%d n_pred:%d use_gpu:%s\n",
-            @timestr, procname, batchsize, n_pred, string(use_gpu))
+    @printf(iolog, "%s %s decode - n_pred:%d use_gpu:%s\n",
+            @timestr, procname, n_pred, string(use_gpu))
 
     # GPU device setup
     if use_gpu
@@ -162,6 +161,8 @@ function decode(m::Decoder, args::Dict, iolog=stdout)
     # iterator
     pred_iter = SampleIterater(samples, 1, n_pred, shuffle=false, sort=false)
 
+    progress = ProgressMeter.Progress(length(pred_iter), desc="Decode: ")
+
     settrain(false)
     preds = Array{Int, 2}(undef, 1, 0)
     probs = Array{Float32, 2}(undef, length(m.tags), 0)
@@ -169,7 +170,9 @@ function decode(m::Decoder, args::Dict, iolog=stdout)
         pred, prob = m.net(Float32, m.charvecs, m.wordvecs, s)
         preds = hcat(preds, reshape(pred, 1, :))
         probs = hcat(probs, prob)
+        ProgressMeter.next!(progress)
     end
+    ProgressMeter.finish!(progress)
 
     @printf(iolog, "%s %s decode complete\n", @timestr, procname)
 
