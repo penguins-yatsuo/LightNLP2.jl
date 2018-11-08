@@ -148,7 +148,6 @@ function decode(m::Decoder, args::Dict, iolog=stdout)
 
     # get args
     use_gpu = getarg!(args, "use_gpu", 0)
-    batchsize = getarg!(args, "batchsize", 1)
     n_pred = length(samples)
 
     @printf(iolog, "%s %s decode - batchsize:%d n_pred:%d use_gpu:%s\n",
@@ -161,7 +160,7 @@ function decode(m::Decoder, args::Dict, iolog=stdout)
     end
 
     # iterator
-    pred_iter = SampleIterater(samples, batchsize, n_pred, shuffle=false, sort=false)
+    pred_iter = SampleIterater(samples, 1, n_pred, shuffle=false, sort=false)
 
     settrain(false)
     preds = Array{Int, 2}(undef, 1, 0)
