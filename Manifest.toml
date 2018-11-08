@@ -79,6 +79,12 @@ git-tree-sha1 = "481e4db939f005db39f7296599d0543c0744fe30"
 uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 version = "1.0.2"
 
+[[Formatting]]
+deps = ["Compat"]
+git-tree-sha1 = "6b5c29ec39a54fa823beb31f836431969e83fb74"
+uuid = "59287772-0a20-5a39-b81b-1366585eb4c0"
+version = "0.3.4"
+
 [[HDF5]]
 deps = ["BinDeps", "Blosc", "Distributed", "Homebrew", "Libdl", "LinearAlgebra", "Mmap", "Pkg", "Test", "WinRPM"]
 git-tree-sha1 = "8c3bcdb44db436cd20106e2381e1c1ac96aa0ee3"
@@ -147,6 +153,14 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 [[Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
+
+[[Merlin]]
+deps = ["CodecZlib", "Libdl", "LinearAlgebra", "Markdown", "ProgressMeter", "Random", "Test"]
+git-tree-sha1 = "afad644fccc655a2b82257094e4238c20989c3e4"
+repo-rev = "nims-develop"
+repo-url = "https://github.com/penguins-yatsuo/Merlin.jl.git"
+uuid = "80f3d04f-b880-5e6d-8e06-6a7e799169ac"
+version = "0.0.3+"
 
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
