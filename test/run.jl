@@ -92,7 +92,7 @@ function main()
 
         model = LightNLP2.Decoder(modelfile)
         results = decode(model, args, iolog)
-        # foreach(t -> println(stdout, t), results)
+        foreach(t -> println(stdout, t), results)
     end
 
     close(iolog)

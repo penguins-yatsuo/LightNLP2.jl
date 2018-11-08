@@ -173,6 +173,7 @@ function decode(m::Decoder, args::Dict, iolog=stdout)
 
     @printf(iolog, "%s %s decode complete\n", @timestr, procname)
 
+    merge_decode(readlines(args["test_file"]), m.tags, preds, probs)
 end
 
 function getarg!(args::Dict, key::String, default::Any)
