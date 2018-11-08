@@ -1,3 +1,5 @@
+export Sample
+
 struct Sample
     w::Matrix{Int}
     dims_w::Vector{Int}
@@ -18,53 +20,6 @@ function Base.string(x::Sample)
         " dims_c=", string(size(x.dims_c)), string(x.dims_c),
         " t=", string(size(x.t)), string(x.t))
 end
-
-function load_samples(path::String, words::Vector{String}, chars::Vector{Char}, tags::Vector{String})
-
-    word_dic = Dict(words[i] => i for i in 1:length(words))
-    char_dic = Dict(chars[i] => i for i in 1:length(chars))
-    tag_dic = Dict(tags[i] => i for i in 1:length(tags))
-
-    unknown_w = length(words)
-    unknown_c = length(chars)
-    unknown_t = length(tags)
-
-    samples = Sample[]
-
-    lines = open(readlines, path, "r")
-    push!(lines, "")
-
-    wordids, charids, tagids, dims_c = Int[], Int[], Int[], Int[]
-    for line in lines
-        if isempty(line)
-            isempty(wordids) && continue
-
-            w = reshape(wordids, 1, length(wordids))
-            c = reshape(charids, 1, length(charids))
-            dims_w = fill(length(wordids), 1)
-
-            push!(samples, Sample(w, dims_w, c, dims_c, tagids))
-
-            wordids, charids, tagids, dims_c = Int[], Int[], Int[], Int[]
-        else
-            items = Vector{String}(split(line,"\t"))
-            word = strip(items[1])
-            push!(wordids, get(word_dic, word, unknown_w))
-
-            chars = Vector{Char}(word)
-            append!(charids, map(c -> get(char_dic, c, unknown_c), chars))
-            push!(dims_c, length(chars))
-
-            if length(items) >= 2
-                tag = strip(items[2])
-                push!(tagids, get(tag_dic, tag, unknown_t))
-            end
-        end
-    end
-
-    samples
-end
-
 
 mutable struct SampleIterater
     samples

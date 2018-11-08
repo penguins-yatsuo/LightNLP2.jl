@@ -123,11 +123,9 @@ function train!(m::Decoder, args::Dict, iolog=stdout)
 
         # evaluation of this epochs
         @assert length(preds) == length(golds)
-        span_preds = BIOES.span_decode(preds, m.tags)
-        span_golds = BIOES.span_decode(golds, m.tags)
-        prec, recall, fval = BIOES.fscore(span_golds, span_preds)
-
-        println(span_preds)
+        span_preds = span_decode(preds, m.tags)
+        span_golds = span_decode(golds, m.tags)
+        prec, recall, fval = fscore(span_golds, span_preds)
 
         @printf(stdout, "Prec: %.5f, Recall: %.5f, Fscore: %.5f\n", prec, recall, fval)
         @printf(iolog, "%s %s end epoch %d - loss:%.5f fval:%.5f prec:%.5f recall:%.5f\n", @timestr, procname,
@@ -179,7 +177,6 @@ function decode(m::Decoder, args::Dict, iolog=stdout)
 
     @printf(iolog, "%s %s decode complete\n", @timestr, procname)
 
-    BIOES.merge_decode(readlines(args["test_file"]), m.tags, preds, probs)
 end
 
 function getarg!(args::Dict, key::String, default::Any)
