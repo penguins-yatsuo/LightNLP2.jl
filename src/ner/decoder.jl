@@ -68,6 +68,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
             length(train_samples), length(test_samples))
     printfmtln(iolog, "{1} {2} train - nepochs:{3} batchsize:{4} n_train:{5} n_test:{6} use_gpu:{7}",
             @timestr, procname, nepochs, batchsize, n_train, n_test, string(use_gpu))
+    flush(iolog)
 
     # GPU device setup
     if use_gpu
@@ -121,9 +122,11 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
         printfmtln(stderr, "Prec: {1:.5f} Recall: {2:.5f} Fscore: {3:.5f}", prec, recall, fval)
         printfmtln(iolog, "{1} {2} end epoch {3} - loss:{4:.5f} prec:{5:.5f} recall:{6:.5f} fscore:{7:.5f}",
             @timestr, procname, epoch, loss, prec, recall, fval)
+        flush(iolog)
     end
 
     printfmtln(iolog, "{1} {2} training complete", @timestr, procname)
+    flush(iolog)
 
     # fetch model from GPU device
     if !oncpu()
