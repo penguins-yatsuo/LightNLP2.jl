@@ -45,7 +45,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
 
     # get args
     use_gpu = getarg!(args, "use_gpu", 0)
-    nepochs = getarg!(args, "nepochs", 1)
+    epochs = getarg!(args, "epochs", 1)
     batchsize = getarg!(args, "batchsize", 1)
     ntags = getarg!(args, "ntags", length(m.tags))
     n_train = getarg!(args, "ntrain", length(train_samples))
@@ -66,8 +66,8 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
             length(m.wordvecs), length(m.charvecs))
     printfmtln(iolog, "{1} {2} data - traindata:{3} testdata:{4}", @timestr, procname,
             length(train_samples), length(test_samples))
-    printfmtln(iolog, "{1} {2} train - nepochs:{3} batchsize:{4} n_train:{5} n_test:{6} use_gpu:{7}",
-            @timestr, procname, nepochs, batchsize, n_train, n_test, string(use_gpu))
+    printfmtln(iolog, "{1} {2} train - epochs:{3} batchsize:{4} n_train:{5} n_test:{6} use_gpu:{7}",
+            @timestr, procname, epochs, batchsize, n_train, n_test, string(use_gpu))
     flush(iolog)
 
     # GPU device setup
@@ -80,7 +80,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     test_iter = SampleIterater(test_samples, batchsize, n_test, shuffle=false, sort=true)
 
     # start train
-    for epoch = 1:nepochs
+    for epoch = 1:epochs
         printfmtln(stderr, "Epoch: {1}", epoch)
         printfmtln(iolog, "{1} {2} begin epoch {3}", @timestr, procname, epoch)
 

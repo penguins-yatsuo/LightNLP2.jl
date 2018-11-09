@@ -28,7 +28,7 @@ function get_args()
         "--test-file"
             help = "path of test data file (BIOES)"
             default = "test.bioes"
-        "--nepochs"
+        "--epochs"
             help = "number of epochs"
             arg_type = Int
             default = 1
