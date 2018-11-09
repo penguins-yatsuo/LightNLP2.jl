@@ -64,8 +64,8 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     printfmtln(iolog, "{1} {2} model - {3}", @timestr, procname, string(m.net))
     printfmtln(iolog, "{1} {2} embeds - words:{3} chars:{4}", @timestr, procname,
             length(m.wordvecs), length(m.charvecs))
-    printfmtln(iolog, "{1} {2} data - traindata:{3} testdata:{4}", @timestr, procname,
-            length(train_samples), length(test_samples))
+    printfmtln(iolog, "{1} {2} data - traindata:{3} testdata:{4} tags:{5}", @timestr, procname,
+            length(train_samples), length(test_samples), string(m.tags))
     printfmtln(iolog, "{1} {2} train - epochs:{3} batchsize:{4} n_train:{5} n_test:{6} use_gpu:{7}",
             @timestr, procname, epochs, batchsize, n_train, n_test, string(use_gpu))
     flush(iolog)
@@ -104,7 +104,6 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
         printfmt(stderr, "Loss: {1:.5f} ", loss)
 
         # test
-        # @printf(stderr, "Test: ")
         settrain(false)
         preds = Int[]
         golds = Int[]
