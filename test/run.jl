@@ -40,10 +40,9 @@ function get_args()
             help = "learning rate"
             arg_type = Float64
             default = 0.0005
-        "--nlayers"
-            help = "number of neural netowork layers"
-            arg_type = Int
-            default = 1
+        "--hidden_dims"
+            help = "output dimensions for hidden layers"
+            default = "128:128"
         "--droprate"
             help = "rate of dropout"
             arg_type = Float64

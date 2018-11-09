@@ -6,8 +6,8 @@ using Merlin: lookup, max, concat, dropout, relu, softmax, softmax_crossentropy
 using Merlin: Linear, Conv1d
 
 struct ConvNet
+    hidden_dims::Vector{Int}
     ntags::Int
-    nlayers::Int
     winsize_c::Int
     winsize_w::Int
     droprate::Float64
@@ -16,16 +16,17 @@ end
 
 function ConvNet(args::Dict)
     ntags = get!(args, "ntags", 128)
-    nlayers = get!(args, "nlayers", 2)
     winsize_c = get!(args, "winsize_c", 2)
     winsize_w = get!(args, "winsize_w", 5)
     droprate = get!(args, "droprate", 0.1)
-    ConvNet(ntags, nlayers, winsize_c, winsize_w, droprate, Dict())
+    hidden_dims = map(s -> tryparse(Int, s), split(get!(args, "hidden_dims", "128:128"), ":"))
+    filter!(x -> !isa(x, Nothing), hidden_dims)
+    ConvNet(hidden_dims, ntags, winsize_c, winsize_w, droprate, Dict())
 end
 
 function Base.string(net::ConvNet)
-    Formatting.format("Conv <ntags:{1} nlayers:{2} winsize_c:{3} winsize_w:{4} droprate:{5:.2f}>",
-        net.ntags, net.nlayers, net.winsize_c, net.winsize_w, net.droprate)
+    Formatting.format("Conv <hidden_dims:{1}, ntags:{2} winsize_c:{3} winsize_w:{4} droprate:{5:.2f}>",
+        string(net.hidden_dims), net.ntags, net.winsize_c, net.winsize_w, net.droprate)
 end
 
 function Merlin.todevice!(net::ConvNet)
@@ -49,9 +50,9 @@ function (net::ConvNet)(::Type{T}, embeds_c::Matrix{T}, embeds_w::Matrix{T}, x::
     h = concat(1, w, c)
 
     # hidden layers
-    for i in 1:net.nlayers
+    for i in 1:length(net.hidden_dims)
         h_conv = get!(net.L, "h_conv_$i",
-            todevice!(Conv1d(T, net.winsize_w * 2 + 1, size(h.data, 1), size(h.data, 1), padding=net.winsize_w)))
+            todevice!(Conv1d(T, net.winsize_w * 2 + 1, size(h.data, 1), net.hidden_dims[i], padding=net.winsize_w)))
         h = relu(dropout(h_conv(h, x.dims_w), net.droprate))
     end
 
