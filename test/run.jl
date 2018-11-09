@@ -68,8 +68,8 @@ function get_args()
             help = "Count of test data"
             arg_type = Int
         "--tags"
-            help = "List of Tags. (Comma seperated string)"
-            default = "B,I,O,E,S"
+            help = "List of Tags. (Colon seperated string)"
+            default = "B:I:O:E:S"
         "--verbose", "-v"
             help = "print verbose output"
             action = :store_true
