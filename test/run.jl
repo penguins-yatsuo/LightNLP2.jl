@@ -1,5 +1,7 @@
 using LightNLP2, Merlin, ArgParse
 
+using Formatting: printfmtln
+
 function get_args()
     s = ArgParseSettings(autofix_names=true)
 
@@ -93,7 +95,9 @@ function main()
         save(model, modelfile)
     else
         model = LightNLP2.Decoder(modelfile)
+
         results = decode(model, args, iolog)
+        printfmtln(stdout, "# {1}", string(model.tags))
         foreach(t -> println(stdout, t), results)
     end
 
