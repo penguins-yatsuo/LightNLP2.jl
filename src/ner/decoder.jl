@@ -119,8 +119,8 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
         prec, recall, fval = fscore(span_golds, span_preds)
 
         printfmtln(stderr, "Prec: {1:.5f} Recall: {2:.5f} Fscore: {3:.5f}", prec, recall, fval)
-        printfmtln(iolog, "{1} {2} end epoch {3} - loss:{4:.5f} fval:{5:.5f} prec:{6:.5f} recall:{7:.5f}",
-            @timestr, procname, epoch, loss, fval, prec, recall)
+        printfmtln(iolog, "{1} {2} end epoch {3} - loss:{4:.5f} prec:{5:.5f} recall:{6:.5f} fscore:{7:.5f}",
+            @timestr, procname, epoch, loss, prec, recall, fval)
     end
 
     printfmtln(iolog, "{1} {2} training complete", @timestr, procname)
