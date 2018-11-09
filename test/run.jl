@@ -36,6 +36,9 @@ function get_args()
             help = "batchsize"
             arg_type = Int
             default = 10
+        "--fine-tuning"
+            help = "fine tuning mode"
+            action = :store_true
         "--learning-rate"
             help = "learning rate"
             arg_type = Float64
@@ -82,9 +85,10 @@ function main()
                 ? open(args["logfile"], "a") : stderr)
 
     if args["training"]
-        tags = split(args["tags"], ",")
-        words, wordvecs, chars, charvecs = LightNLP2.load_embeds(args["wordvec_file"]; csize=20)
-        model = LightNLP2.Decoder(words, wordvecs, chars, charvecs, tags)
+        model = args["fine_tuning"] ? LightNLP2.Decoder(modelfile) : LightNLP2.Decoder()
+        model.tags = split(args["tags"], ":")
+        model.words, model.wordvecs, model.chars, model.charvecs = LightNLP2.load_embeds(args["wordvec_file"]; csize=20)
+
         train!(model, args, iolog)
         save(model, modelfile)
     else
