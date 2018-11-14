@@ -1,0 +1,10 @@
+julia 1.0
+ArgParse
+Dates
+FileIO
+Formatting
+HDF5
+JLD2
+Merlin
+ProgressMeter
+Statistics
