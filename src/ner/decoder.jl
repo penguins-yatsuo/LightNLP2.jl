@@ -1,10 +1,12 @@
-export Decoder, save, load, train!, decode
+export Decoder, save, load, prepare_train!, train!, decode
 
 import ProgressMeter, Formatting
+
 using Formatting: printfmt, printfmtln
 using JLD2: JLDWriteSession, jldopen, read, write
-using Merlin: oncpu, setcpu, ongpu, setcuda, settrain, isnothing
+using Merlin: settrain, isnothing
 using Merlin: shuffle!, gradient!, SGD
+using Merlin.CUDA: getdevice, setdevice, synchronize
 
 mutable struct Decoder
     words::Vector{String}
@@ -15,12 +17,12 @@ mutable struct Decoder
     net
 end
 
-function Decoder(words, wordvecs, chars, charvecs, tags)
-    Decoder(words, wordvecs, chars, charvecs, tags, nothing)
-end
-
-function Decoder(fname::String)
-    load(fname)
+function Decoder(fname::String="")
+    if isfile(fname)
+        load(fname)
+    else
+        Decoder(String[], Array{Float32, 2}(undef, 0, 0), Char[], Array{Float32, 2}(undef, 0, 0), String[], nothing)
+    end
 end
 
 function save(m::Decoder, fname::String)
@@ -35,6 +37,19 @@ function load(fname::String)
         read(file, "decoder")
     end
 end
+
+function prepare_train!(m::Decoder, args::Dict)
+
+    if args["init_model"]
+        m.tags = split(args["tags"], ":")
+        m.words, m.wordvecs = LightNLP2.read_wordvecs(args["wordvec_file"])
+        m.chars, m.charvecs = LightNLP2.create_charvecs(m.words, csize=20)
+    else
+        # NOOP
+    end
+
+end
+
 
 function train!(m::Decoder, args::Dict, iolog=stderr)
     procname = Formatting.format("NER[{1}]", get!(args, "jobid", "-"))
@@ -63,7 +78,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     # print job status
     printfmtln(iolog, "{1} {2} model - {3}", @timestr, procname, string(m.net))
     printfmtln(iolog, "{1} {2} embeds - words:{3} chars:{4}", @timestr, procname,
-            length(m.wordvecs), length(m.charvecs))
+            length(m.words), length(m.chars))
     printfmtln(iolog, "{1} {2} data - traindata:{3} testdata:{4} tags:{5}", @timestr, procname,
             length(train_samples), length(test_samples), string(m.tags))
     printfmtln(iolog, "{1} {2} train - epochs:{3} batchsize:{4} n_train:{5} n_test:{6} use_gpu:{7}",
@@ -72,8 +87,8 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
 
     # GPU device setup
     if use_gpu
-        setcuda(0)
-        todevice!(m.net)
+        setdevice(0)
+        @ondevice(m.net)
     end
 
     # test data iterator
@@ -91,13 +106,14 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
         progress = ProgressMeter.Progress(length(train_iter), desc="Train: ")
         opt.rate = args["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
 
-        loss = 0.0
+        loss = 0
         for (i, s) in enumerate(train_iter)
-            z = m.net(Float32, m.charvecs, m.wordvecs, s)
+            z = m.net(Float32, m.wordvecs, m.charvecs, s)
             params = gradient!(z)
             foreach(opt, filter(x -> !isnothing(x.grad), params))
-            loss += sum(z.data) / length(s)
+            loss += sum(@cpu(z.data)) / length(s)
             ProgressMeter.next!(progress)
+            synchronize()
         end
         loss /= length(train_iter)
         ProgressMeter.finish!(progress)
@@ -108,14 +124,16 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
         preds = Int[]
         golds = Int[]
         for (i, s) in enumerate(test_iter)
-            pred, prob = m.net(Float32, m.charvecs, m.wordvecs, s)
-            append!(preds, pred)
+            z = @cpu m.net(Float32, m.wordvecs, m.charvecs, s)
+            append!(preds, argmax(z))
             append!(golds, s.t)
+            synchronize()
         end
 
         # evaluation of this epochs
-        span_preds = span_decode(preds, m.tags)
         span_golds = span_decode(golds, m.tags)
+        span_preds = span_decode(preds, m.tags)
+        
         prec, recall, fval = fscore(span_golds, span_preds)
 
         printfmtln(stderr, "Prec: {1:.5f} Recall: {2:.5f} Fscore: {3:.5f}", prec, recall, fval)
@@ -128,10 +146,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     flush(iolog)
 
     # fetch model from GPU device
-    if !oncpu()
-        setcpu()
-        todevice!(m.net)
-    end
+    @oncpu(m.net)
 end
 
 
@@ -150,8 +165,8 @@ function decode(m::Decoder, args::Dict, iolog=stderr)
 
     # GPU device setup
     if use_gpu
-        setcuda(0)
-        todevice!(m.net)
+        setdevice(0)
+        @ondevice(m.net)
     end
 
     # iterator
@@ -162,10 +177,11 @@ function decode(m::Decoder, args::Dict, iolog=stderr)
     preds = Array{Int, 2}(undef, 1, 0)
     probs = Array{Float32, 2}(undef, length(m.tags), 0)
     for (i, s) in enumerate(pred_iter)
-        pred, prob = m.net(Float32, m.charvecs, m.wordvecs, s)
-        preds = hcat(preds, reshape(pred, 1, :))
-        probs = hcat(probs, prob)
+        z = @cpu m.net(Float32, m.wordvecs, m.charvecs, s)
+        preds = hcat(preds, reshape(argmax(z), 1, :))
+        probs = hcat(probs, z.data)
         ProgressMeter.next!(progress)
+        synchronize()
     end
     ProgressMeter.finish!(progress)
     printfmtln(iolog, "`{1} {2} decode complete", @timestr, procname)

@@ -1,25 +1,26 @@
 using LightNLP2, Merlin, ArgParse
-
 using Formatting: printfmtln
 
 function get_args()
     s = ArgParseSettings(autofix_names=true)
 
     @add_arg_table s begin
-        "--neural-network"
-            help = "neural network type (conv|lstm)"
-            required = true
         "--model"
             help = "path of traind model file"
             required = true
-        "--training"
+        "--neural-network"
+            help = "neural network type (conv|lstm)"
+        "--train"
             help = "do training"
+            action = :store_true
+        "--init-model"
+            help = "initialize model"
             action = :store_true
         "--jobid"
             help = "job identification"
             default = "-"
-        "--log"
-            help = "log"
+        "--logfile"
+            help = "logfile"
             default = "stderr"
         "--wordvec-file"
             help = "path of word embeds file (HDF5)"
@@ -35,18 +36,15 @@ function get_args()
             arg_type = Int
             default = 1
         "--batchsize"
-            help = "batchsize"
+            help = "size of minibatch"
             arg_type = Int
             default = 10
-        "--fine-tuning"
-            help = "fine tuning mode"
-            action = :store_true
         "--learning-rate"
             help = "learning rate"
             arg_type = Float64
             default = 0.0005
-        "--hidden_dims"
-            help = "output dimensions for hidden layers"
+        "--hidden-dims"
+            help = "output dimension of hidden layers"
             default = "128:128"
         "--droprate"
             help = "rate of dropout"
@@ -86,18 +84,17 @@ function main()
     iolog = (haskey(args, "logfile") && args["logfile"] != "stderr"
                 ? open(args["logfile"], "a") : stderr)
 
-    if args["training"]
-        model = args["fine_tuning"] ? LightNLP2.Decoder(modelfile) : LightNLP2.Decoder()
-        model.tags = split(args["tags"], ":")
-        model.words, model.wordvecs, model.chars, model.charvecs = LightNLP2.load_embeds(args["wordvec_file"]; csize=20)
+    if args["train"]
+        model = LightNLP2.Decoder(modelfile)
 
+        prepare_train!(model, args)
         train!(model, args, iolog)
         save(model, modelfile)
     else
         model = LightNLP2.Decoder(modelfile)
 
         results = decode(model, args, iolog)
-        printfmtln(stdout, "# {1}", string(model.tags))
+        printfmtln(stdout, "# {1}", join(model.tags, ":"))
         foreach(t -> println(stdout, t), results)
     end
 
