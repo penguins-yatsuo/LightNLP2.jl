@@ -50,17 +50,20 @@ end
 function span_decode(ids::Vector{Int}, tags::Vector{String})
     spans = Tuple{Int, Int, String}[]
     bpos = 0
+
     for pos in 1:length(ids)
         tag = tags[ids[pos]]
-        tag == "O" && continue
 
+        startswith(tag, "O") && (bpos = 0)
         startswith(tag, "B") && (bpos = pos)
-        startswith(tag, "S") && (bpos = pos)
 
-        if startswith(tag, "S") || (startswith(tag, "E") && (bpos > 0))
-            btag = tags[ids[bpos]]
-            suffix = (length(btag) > 2) ? btag[3:end] : ""
-            push!(spans, (bpos, pos, suffix))
+        startswith(tag, "E") && bpos > 0 && begin
+            push!(spans, (bpos, pos, ((length(tag) > 2) ? tag[3:end] : "")))
+            bpos = 0        
+        end
+
+        startswith(tag, "S") && bpos == 0 && begin
+            push!(spans, (pos, pos, ((length(tag) > 2) ? tag[3:end] : "")))
             bpos = 0
         end
     end
