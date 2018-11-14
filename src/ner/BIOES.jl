@@ -6,8 +6,8 @@ function load_samples(path::String, words::Vector{String}, chars::Vector{Char}, 
     char_dic = Dict(chars[i] => i for i in 1:length(chars))
     tag_dic = Dict(tags[i] => i for i in 1:length(tags))
 
-    unknown_w = length(words)
-    unknown_c = length(chars)
+    unknown_w = lastindex(words)
+    unknown_c = lastindex(chars)
     unknown_t = tag_dic["O"]
 
     samples = Sample[]
