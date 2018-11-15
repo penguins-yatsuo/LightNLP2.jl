@@ -94,16 +94,19 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     test_iter = SampleIterater(test_samples, batchsize, n_test, shuffle=false, sort=true)
 
     # start train
+    decay = 0.05
+    opt.rate = args["learning_rate"]
     for epoch = 1:epochs
         printfmtln(stderr, "Epoch: {1}", epoch)
         printfmtln(iolog, "{1} {2} begin epoch {3}", @timestr, procname, epoch)
 
+        # learning rate
+        opt.rate = opt.rate * (1.0 / (1.0 + decay * (epoch - 1)))
+
         # train
         settrain(true)
         train_iter = SampleIterater(train_samples, batchsize, n_train, shuffle=true, sort=true)
-
         progress = ProgressMeter.Progress(length(train_iter), desc="Train: ")
-        opt.rate = args["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
 
         loss::Float64 = 0
         for (i, s) in enumerate(train_iter)
@@ -111,9 +114,6 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
             params = gradient!(z)
             foreach(opt, filter(x -> isparam(x), params))
             loss += sum(@cpu(z.data)) / length(s)
-
-            println("loss:", loss, " sum(z):", sum(@cpu(z.data)), "length(s):", length(s))
-
             ProgressMeter.next!(progress)
             synchronize()
         end
