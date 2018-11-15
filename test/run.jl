@@ -43,6 +43,10 @@ function get_args()
             help = "learning rate"
             arg_type = Float64
             default = 0.0005
+        "--decay"
+            help = "decay of learning rate"
+            arg_type = Float64
+            default = 0.0001
         "--hidden-dims"
             help = "output dimension of hidden layers"
             default = "128:128"

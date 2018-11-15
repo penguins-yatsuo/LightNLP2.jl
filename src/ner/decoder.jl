@@ -94,13 +94,13 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     test_iter = SampleIterater(test_samples, batchsize, n_test, shuffle=false, sort=true)
 
     # start train
-    decay = 0.05
-    opt.rate = args["learning_rate"]
+    decay = getarg!(args, "decay", 0.0001)
+    opt.rate = getarg!(args, "learning_rate", 0.0005)
     for epoch = 1:epochs
         printfmtln(stderr, "Epoch: {1}", epoch)
         printfmtln(iolog, "{1} {2} begin epoch {3}", @timestr, procname, epoch)
 
-        # learning rate
+        # time-based decay
         opt.rate = opt.rate * (1.0 / (1.0 + decay * (epoch - 1)))
 
         # train
