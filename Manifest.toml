@@ -156,7 +156,7 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[Merlin]]
 deps = ["CodecZlib", "Libdl", "LinearAlgebra", "Markdown", "ProgressMeter", "Random", "Test"]
-git-tree-sha1 = "afad644fccc655a2b82257094e4238c20989c3e4"
+git-tree-sha1 = "5fe101375d56b8ef66102541d2d2d8c76537c790"
 repo-rev = "nims-develop"
 repo-url = "https://github.com/penguins-yatsuo/Merlin.jl.git"
 uuid = "80f3d04f-b880-5e6d-8e06-6a7e799169ac"
@@ -187,9 +187,9 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [[ProgressMeter]]
 deps = ["Distributed", "Printf", "Random", "Test"]
-git-tree-sha1 = "5b55c2c974084eab2689ec0d1d5245561b22aeb0"
+git-tree-sha1 = "37e7d3982c8d4610196829c01387dd561756aedc"
 uuid = "92933f4c-e287-5a05-a399-4b506db050ca"
-version = "0.6.1"
+version = "0.8.0"
 
 [[REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets"]
