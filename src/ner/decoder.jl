@@ -1,11 +1,10 @@
 export Decoder, save, load, prepare_train!, train!, decode
 
-import ProgressMeter, Formatting
+import ProgressMeter
 
 using Formatting: printfmt, printfmtln
 using JLD2: JLDWriteSession, jldopen, read, write
-using Merlin: settrain, isnothing, isparam
-using Merlin: shuffle!, gradient!, SGD
+using Merlin: settrain, isnothing, isparam, gradient!, SGD
 using Merlin.CUDA: getdevice, setdevice, synchronize
 
 mutable struct Decoder
