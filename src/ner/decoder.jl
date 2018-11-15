@@ -4,7 +4,7 @@ import ProgressMeter, Formatting
 
 using Formatting: printfmt, printfmtln
 using JLD2: JLDWriteSession, jldopen, read, write
-using Merlin: settrain, isnothing
+using Merlin: settrain, isnothing, isparam
 using Merlin: shuffle!, gradient!, SGD
 using Merlin.CUDA: getdevice, setdevice, synchronize
 
@@ -106,12 +106,15 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
         progress = ProgressMeter.Progress(length(train_iter), desc="Train: ")
         opt.rate = args["learning_rate"] * batchsize / sqrt(batchsize) / (1 + 0.05*(epoch-1))
 
-        loss = 0
+        loss::Float64 = 0
         for (i, s) in enumerate(train_iter)
             z = m.net(Float32, m.wordvecs, m.charvecs, s)
             params = gradient!(z)
-            foreach(opt, filter(x -> !isnothing(x.grad), params))
+            foreach(opt, filter(x -> isparam(x), params))
             loss += sum(@cpu(z.data)) / length(s)
+
+            println("loss:", loss, " sum(z):", sum(@cpu(z.data)), "length(s):", length(s))
+
             ProgressMeter.next!(progress)
             synchronize()
         end
