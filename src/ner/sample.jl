@@ -1,5 +1,7 @@
 export Sample
 
+using Random
+
 struct Sample
     w::Matrix{Int}
     dims_w::Vector{Int}
@@ -31,7 +33,7 @@ end
 
 function SampleIterater(samples, batchsize::Int, n_samples::Int; shuffle::Bool=false, sort::Bool=false)
     (n_samples < 1 || n_samples > length(samples)) && (n_samples = length(samples))
-    shuffle && shuffle!(samples)
+    shuffle && Random.shuffle!(samples)
     SampleIterater(samples, batchsize, n_samples, sort, nothing)
 end
 
