@@ -1,19 +1,33 @@
-import Merlin
+import Merlin, Merlin.CUDA
 
 const CPU = -1
 
-DEVICE = CPU
+struct DeviceConfig 
+    device_id::Int
+end
+
+DEVICE = DeviceConfig(CPU)
 
 macro setdevice(device)
-    return Expr(:block, Expr(:(=), :DEVICE, Expr(:if, Expr(:call, :(==), esc(device), :CPU), :CPU, Expr(:call, :setdevice, esc(device)))))
+    return Expr(:call, :device_config, esc(device))
 end
 
 macro device(ex)
-    return Expr(:call, :todevice!, esc(ex), :DEVICE)
+    return Expr(:call, :todevice!, esc(ex), Expr(:call, :device_config))
 end
 
 macro host(ex)
     return Expr(:call, :todevice!, esc(ex), CPU)
+end
+
+function device_config(device::Union{Int, Nothing}=nothing)
+    if device != nothing
+        global DEVICE = DeviceConfig(device)
+        if device != CPU
+            Merlin.CUDA.setdevice(DEVICE.device_id)
+        end
+    end
+    DEVICE.device_id
 end
 
 function Merlin.todevice!(o::Nothing, device::Int)
