@@ -5,7 +5,7 @@ using Merlin: istrain, todevice, todevice!, parameter, Var, data
 using Merlin: lookup, max, concat, relu, softmax, softmax_crossentropy
 using Merlin: Linear, Conv1d, LSTM
 
-struct LstmNet
+struct LstmNet <:AbstractNet
     hidden_dims::Vector{Int}
     ntags::Int
     win_c::Int
@@ -27,12 +27,6 @@ end
 function Base.string(net::LstmNet)
     Formatting.format("LSTM <hidden_dims:{1} ntags:{2} winsize_c:{3} droprate:{4:.2f} bidirectional:{5}>",
         string(net.hidden_dims), net.ntags, net.win_c, net.droprate, string(net.bidir))
-end
-
-function Merlin.todevice!(net::LstmNet, device::Int)
-    foreach(keys(net.L)) do k
-        net.L[k] = todevice(net.L[k], device)
-    end
 end
 
 function (net::LstmNet)(::Type{T}, embeds_w::Matrix{T}, embeds_c::Matrix{T}, x::Sample) where T

@@ -32,6 +32,13 @@ end
 
 function Merlin.todevice(src::Merlin.LSTM, device::Int)
     Merlin.LSTM(src.insize, src.hsize, src.nlayers, src.droprate, src.bidir, map(w -> todevice(w, device), src.weights))
+abstract type AbstractNet end
+
+function Merlin.todevice!(net::AbstractNet, device::Int)
+    foreach(values(net.L)) do layer
+        todevice!(layer, device)
+    end
+    net
 end
 
 function vsize(var::Merlin.Var)
