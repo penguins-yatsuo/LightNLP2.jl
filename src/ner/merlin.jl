@@ -53,13 +53,18 @@ function Merlin.todevice!(lstm::Merlin.LSTM, device::Int)
     lstm
 end
 
-abstract type AbstractNet end
-
-function Merlin.todevice!(net::AbstractNet, device::Int)
-    foreach(values(net.L)) do layer
+function Merlin.todevice!(layers::Vector, device::Int)
+    foreach(layers) do layer
         todevice!(layer, device)
     end
-    net
+    layers
+end
+
+function Merlin.todevice!(layers::Dict, device::Int)
+    foreach(values(layers)) do layer
+        todevice!(layer, device)
+    end
+    layers
 end
 
 function vsize(var::Merlin.Var)

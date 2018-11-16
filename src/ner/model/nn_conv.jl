@@ -1,12 +1,12 @@
 
 import Formatting
 
-using Merlin: istrain, todevice, parameter, Var, data
+using Merlin: istrain, todevice!, parameter, Var, data
 using Merlin: lookup, max, concat, dropout, relu, softmax, softmax_crossentropy
 using Merlin: Linear, Conv1d
 using Merlin.CUDA: getdevice
 
-struct ConvNet <:AbstractNet
+struct ConvNet
     hidden_dims::Vector{Int}
     ntags::Int
     win_c::Int
@@ -29,6 +29,8 @@ function Base.string(net::ConvNet)
     Formatting.format("Conv <hidden_dims:{1}, ntags:{2} winsize_c:{3} winsize_w:{4} droprate:{5:.2f}>",
         string(net.hidden_dims), net.ntags, net.win_c, net.win_w, net.droprate)
 end
+
+Merlin.todevice!(net::ConvNet, device::Int) = Merlin.todevice!(net.L, device)
 
 function (net::ConvNet)(::Type{T}, embeds_w::Matrix{T}, embeds_c::Matrix{T}, x::Sample) where T
     c = @device parameter(lookup(embeds_c, x.c))
