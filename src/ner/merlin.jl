@@ -16,20 +16,29 @@ macro host(ex)
     return Expr(:call, :todevice!, esc(ex), CPU)
 end
 
-function Merlin.todevice(a::Nothing, device::Int)
+function Merlin.todevice!(o::Nothing, device::Int)
     nothing
 end
 
-function Merlin.todevice(src::Merlin.Linear, device::Int)
-    Merlin.Linear(todevice(src.W, device), todevice(src.b, device))
+function Merlin.todevice!(linear::Merlin.Linear, device::Int)
+    todevice!(linear.W, device)
+    todevice!(linear.b, device)
+    linear
 end
 
-function Merlin.todevice(src::Merlin.Conv1d, device::Int)
-    Merlin.Conv1d(src.ksize, src.padding, src.stride, src.dilation, todevice(src.W, device), todevice(src.b, device))
+function Merlin.todevice!(conv::Merlin.Conv1d, device::Int)
+    todevice!(conv.W, device)
+    todevice!(conv.b, device)
+    conv
 end
 
-function Merlin.todevice(src::Merlin.LSTM, device::Int)
-    Merlin.LSTM(src.insize, src.hsize, src.nlayers, src.droprate, src.bidir, map(w -> todevice(w, device), src.weights))
+function Merlin.todevice!(lstm::Merlin.LSTM, device::Int)
+    foreach(lstm.weights) do weight
+        todevice!(weight, device)
+    end
+    lstm
+end
+
 abstract type AbstractNet end
 
 function Merlin.todevice!(net::AbstractNet, device::Int)
