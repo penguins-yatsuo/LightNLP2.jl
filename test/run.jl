@@ -62,8 +62,8 @@ function get_args()
             help = "[Convolution only] window (half kernel) size of word convolution"
             arg_type = Int
             default = 5
-        "--use-gpu"
-            help = "Use GPU device"
+        "--cpu"
+            help = "CPU ONLY"
             action = :store_true
         "--ntrain"
             help = "Count of training data"

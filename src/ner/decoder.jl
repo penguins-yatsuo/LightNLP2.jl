@@ -58,7 +58,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     test_samples = load_samples(args["test_file"], m.words, m.chars, m.tags)
 
     # get args
-    use_gpu = getarg!(args, "use_gpu", 0)
+    cpuonly = getarg!(args, "cpu", false)
     epochs = getarg!(args, "epochs", 1)
     batchsize = getarg!(args, "batchsize", 1)
     ntags = getarg!(args, "ntags", length(m.tags))
@@ -84,13 +84,9 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
             @timestr, procname, epochs, batchsize, n_train, n_test, string(use_gpu))
     flush(iolog)
 
-    # GPU device setup
-    if use_gpu
-        @setdevice 0
-        println(DEVICE)
-        # setdevice(0)
-        @device m.net
-    end
+    # device setup
+    setdevice(cpuonly ? CPU : getdevice())
+    @device m.net
 
     # test data iterator
     test_iter = SampleIterater(test_samples, batchsize, n_test, shuffle=false, sort=true)
@@ -167,11 +163,9 @@ function decode(m::Decoder, args::Dict, iolog=stderr)
     printfmtln(iolog, "{1} {2} decode - n_pred:{3} use_gpu:{4}",
             @timestr, procname, n_pred, string(use_gpu))
 
-    # GPU device setup
-    if use_gpu
-        setdevice(0)
-        @device m.net
-    end
+    # device setup
+    setdevice(cpuonly ? CPU : getdevice())
+    @device m.net
 
     # iterator
     pred_iter = SampleIterater(samples, 1, n_pred, shuffle=false, sort=false)
