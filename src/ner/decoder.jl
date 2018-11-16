@@ -86,8 +86,10 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
 
     # GPU device setup
     if use_gpu
-        setdevice(0)
-        @ondevice(m.net)
+        @setdevice 0
+        println(DEVICE)
+        # setdevice(0)
+        @device m.net
     end
 
     # test data iterator
@@ -113,7 +115,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
             z = m.net(Float32, m.wordvecs, m.charvecs, s)
             params = gradient!(z)
             foreach(opt, filter(x -> isparam(x), params))
-            loss += sum(@cpu(z.data)) / length(s)
+            loss += sum(@host(z).data) / length(s)
             ProgressMeter.next!(progress)
             synchronize()
         end
@@ -126,7 +128,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
         preds = Int[]
         golds = Int[]
         for (i, s) in enumerate(test_iter)
-            z = @cpu m.net(Float32, m.wordvecs, m.charvecs, s)
+            z = @host m.net(Float32, m.wordvecs, m.charvecs, s)
             append!(preds, argmax(z))
             append!(golds, s.t)
             synchronize()
@@ -148,7 +150,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     flush(iolog)
 
     # fetch model from GPU device
-    @oncpu(m.net)
+    @host m.net
 end
 
 
@@ -168,7 +170,7 @@ function decode(m::Decoder, args::Dict, iolog=stderr)
     # GPU device setup
     if use_gpu
         setdevice(0)
-        @ondevice(m.net)
+        @device m.net
     end
 
     # iterator
@@ -179,7 +181,7 @@ function decode(m::Decoder, args::Dict, iolog=stderr)
     preds = Array{Int, 2}(undef, 1, 0)
     probs = Array{Float32, 2}(undef, length(m.tags), 0)
     for (i, s) in enumerate(pred_iter)
-        z = @cpu m.net(Float32, m.wordvecs, m.charvecs, s)
+        z = @host m.net(Float32, m.wordvecs, m.charvecs, s)
         preds = hcat(preds, reshape(argmax(z), 1, :))
         probs = hcat(probs, z.data)
         ProgressMeter.next!(progress)

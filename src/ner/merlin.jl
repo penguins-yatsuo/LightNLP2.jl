@@ -2,19 +2,17 @@ import Merlin
 
 const CPU = -1
 
+DEVICE = CPU
+
+macro setdevice(device)
+    return Expr(:block, Expr(:(=), :DEVICE, Expr(:if, Expr(:call, :(==), esc(device), :CPU), :CPU, Expr(:call, :setdevice, esc(device)))))
+end
+
 macro device(ex)
-    return Expr(:call, :todevice, esc(ex), Expr(:call, :getdevice))
+    return Expr(:call, :todevice!, esc(ex), :DEVICE)
 end
 
-macro cpu(ex)
-    return Expr(:call, :todevice, esc(ex), CPU)
-end
-
-macro ondevice(ex)
-    return Expr(:call, :todevice!, esc(ex), Expr(:call, :getdevice))
-end
-
-macro oncpu(ex)
+macro host(ex)
     return Expr(:call, :todevice!, esc(ex), CPU)
 end
 
