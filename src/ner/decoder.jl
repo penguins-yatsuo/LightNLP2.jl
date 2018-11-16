@@ -58,7 +58,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     test_samples = load_samples(args["test_file"], m.words, m.chars, m.tags)
 
     # get args
-    cpuonly = getarg!(args, "cpu", false)
+    cpu_only = getarg!(args, "cpu", false)
     epochs = getarg!(args, "epochs", 1)
     batchsize = getarg!(args, "batchsize", 1)
     ntags = getarg!(args, "ntags", length(m.tags))
@@ -80,8 +80,8 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
             length(m.words), length(m.chars))
     printfmtln(iolog, "{1} {2} data - traindata:{3} testdata:{4} tags:{5}", @timestr, procname,
             length(train_samples), length(test_samples), string(m.tags))
-    printfmtln(iolog, "{1} {2} train - epochs:{3} batchsize:{4} n_train:{5} n_test:{6} use_gpu:{7}",
-            @timestr, procname, epochs, batchsize, n_train, n_test, string(use_gpu))
+    printfmtln(iolog, "{1} {2} train - epochs:{3} batchsize:{4} n_train:{5} n_test:{6} cpu_only:{7}",
+            @timestr, procname, epochs, batchsize, n_train, n_test, string(cpu_only))
     flush(iolog)
 
     # device setup
@@ -157,11 +157,11 @@ function decode(m::Decoder, args::Dict, iolog=stderr)
     samples = load_samples(args["test_file"], m.words, m.chars, m.tags)
 
     # get args
-    use_gpu = getarg!(args, "use_gpu", 0)
+    cpu_only = getarg!(args, "cpu", false)
     n_pred = length(samples)
 
-    printfmtln(iolog, "{1} {2} decode - n_pred:{3} use_gpu:{4}",
-            @timestr, procname, n_pred, string(use_gpu))
+    printfmtln(iolog, "{1} {2} decode - n_pred:{3} cpu_only:{4}",
+            @timestr, procname, n_pred, string(cpu_only))
 
     # device setup
     @setdevice(cpu_only ? CPU : getdevice())
