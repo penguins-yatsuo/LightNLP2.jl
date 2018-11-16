@@ -5,7 +5,7 @@ import ProgressMeter
 using Formatting: printfmt, printfmtln
 using JLD2: JLDWriteSession, jldopen, read, write
 using Merlin: settrain, isnothing, isparam, gradient!, SGD
-using Merlin.CUDA: getdevice, setdevice, synchronize
+using Merlin.CUDA: getdevice, synchronize
 
 mutable struct Decoder
     words::Vector{String}
@@ -85,7 +85,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     flush(iolog)
 
     # device setup
-    setdevice(cpuonly ? CPU : getdevice())
+    @setdevice(cpu_only ? CPU : getdevice())
     @device m.net
 
     # test data iterator
@@ -164,7 +164,7 @@ function decode(m::Decoder, args::Dict, iolog=stderr)
             @timestr, procname, n_pred, string(use_gpu))
 
     # device setup
-    setdevice(cpuonly ? CPU : getdevice())
+    @setdevice(cpu_only ? CPU : getdevice())
     @device m.net
 
     # iterator
