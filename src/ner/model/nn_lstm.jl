@@ -45,10 +45,8 @@ function (net::LstmNet)(::Type{T}, embeds_w::Matrix{T}, embeds_c::Matrix{T}, x::
     h = concat(1, w, c)
 
     # hidden layer
-    # h_lstm = get!(net.L, "h_lstm") do
-    #     @device LSTM(T, vsize(h), last(net.hidden_dims), length(net.hidden_dims), net.droprate, net.bidir)
-    # end
-    # h = relu(h_lstm(h, x.dims_w))
+    # Merlin.LSTMでnlayersに2以上を設定すると実行時エラーが発生する
+    # 代替の実装として1層のLSTMを重ねる
     for i in 1:length(net.hidden_dims)
         h_lstm = get!(net.L, "h_lstm_$i") do 
             @device LSTM(T, vsize(h), net.hidden_dims[i], 1, net.droprate, net.bidir)
