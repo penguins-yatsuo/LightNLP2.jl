@@ -43,6 +43,7 @@ function prepare_train!(m::Decoder, args::Dict)
         m.tags = split(args["tags"], ":")
         m.words, m.wordvecs = LightNLP2.read_wordvecs(args["wordvec_file"])
         m.chars, m.charvecs = LightNLP2.create_charvecs(m.words, csize=20)
+        m.net = nothing
     else
         # NOOP
     end
@@ -66,9 +67,11 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     n_test = getarg!(args, "ntest", length(test_samples))
 
     # create neural network
-    m.net = begin
-        lowercase(args["neural_network"]) == "conv" ? ConvNet(args) :
-        lowercase(args["neural_network"]) == "lstm" ? LstmNet(args) : nothing
+    if m.net == nothing
+        m.net = begin
+            lowercase(args["neural_network"]) == "conv" ? ConvNet(args) :
+            lowercase(args["neural_network"]) == "lstm" ? LstmNet(args) : nothing
+        end
     end
 
     # optimizer
