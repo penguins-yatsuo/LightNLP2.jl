@@ -24,7 +24,11 @@ function Decoder(fname::String="")
     end
 end
 
-function save(m::Decoder, fname::String)
+function save(m::Decoder, fname::String; compact::Bool=true)
+    if compact
+        m.wordvecs = Array{Float32, 2}(undef, 0, 0)
+        m.charvecs = Array{Float32, 2}(undef, 0, 0)
+    end
     jldopen(fname, "w") do file
         wsession = JLDWriteSession()
         write(file, "decoder", m, wsession)
