@@ -17,6 +17,8 @@ function load_samples(path::String, words::Vector{String}, chars::Vector{Char}, 
 
     wordids, charids, tagids, dims_c = Int[], Int[], Int[], Int[]
     for line in lines
+        line = strip(line)
+
         if isempty(line)
             isempty(wordids) && continue
 
@@ -28,6 +30,8 @@ function load_samples(path::String, words::Vector{String}, chars::Vector{Char}, 
 
             wordids, charids, tagids, dims_c = Int[], Int[], Int[], Int[]
         else
+            line[1] == "#" && continue
+
             items = Vector{String}(split(line,"\t"))
             word = strip(items[1])
             push!(wordids, get(word_dic, word, unknown_w))
