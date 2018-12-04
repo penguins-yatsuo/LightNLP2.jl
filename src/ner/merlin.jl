@@ -67,6 +67,29 @@ function Merlin.todevice!(layers::Dict, device::Int)
     layers
 end
 
+
+mutable struct Embedding
+    W::Merlin.Var
+end
+
+function Embedding(w::Matrix{T}; trainable::Bool=true) where T
+    if trainable
+        Embedding(Merlin.parameter(w))
+    else
+        Embedding(Merlin.Var(w))
+    end
+end
+
+function (f::Embedding)(x::Merlin.Var)
+    Merlin.lookup(f.W, x)
+end
+
+function Merlin.todevice!(embedding::Embedding, device::Int)
+    Merlin.todevice!(embedding.W, device)
+    embedding
+end
+
+
 function vsize(var::Merlin.Var)
     size(var, 1)
 end

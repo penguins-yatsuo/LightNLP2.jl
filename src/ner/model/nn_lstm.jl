@@ -21,6 +21,7 @@ function LstmNet(args::Dict)
     bidir = get!(args, "bidirectional", true)
     hidden_dims = map(s -> tryparse(Int, s), split(get!(args, "hidden_dims", "128:128"), ":"))
     filter!(x -> !isa(x, Nothing), hidden_dims)
+
     LstmNet(hidden_dims, ntags, win_c, droprate, bidir, Dict())
 end
 
@@ -32,8 +33,18 @@ end
 Merlin.todevice!(net::LstmNet, device::Int) = Merlin.todevice!(net.L, device)
 
 function (net::LstmNet)(::Type{T}, embeds_w::Matrix{T}, embeds_c::Matrix{T}, x::Sample) where T
-    c = @device parameter(lookup(embeds_c, x.c))
-    w = @device parameter(lookup(embeds_w, x.w))
+    c = @device Var(x.c)
+    w = @device Var(x.w)
+
+    # embeddings
+    c_embed = get!(net.L, "c_embed") do
+        @device Embedding(embeds_c)
+    end
+    w_embed = get!(net.L, "w_embed") do 
+        @device Embedding(embeds_w)
+    end
+    c = c_embed(c)
+    w = w_embed(w)
 
     # character conv
     c_conv = get!(net.L, "c_conv") do 
