@@ -42,8 +42,17 @@ function prepare_train!(m::Decoder, args::Dict)
         m.words = LightNLP2.embed_words(args["wordvec_file"])
         m.chars = LightNLP2.embed_chars(m.words)
         m.net = nothing
+
     else
-        # NOOP
+        tags = split(args["tags"], ":")
+        if m.tags != tags
+            @info "Tags changed. Initialize output layer."
+            m.tags = tags
+            if type(m.net) in [ConvNet, LstmNet]
+                init_output!(m.net)
+            end
+        end
+
     end
 
 end
