@@ -4,7 +4,7 @@ import HDF5: h5read
 import Statistics: mean
 
 UNKNOWN_CHAR = Char(0xfffd) # Unicode U+fffd 'REPLACEMENT CHARACTER'
-UNKNOWN_WORD = string(UNKNOWN_CHAR)
+UNKNOWN_WORD = string("-UNK-")
 
 function embed_words(embeds_file::String)
     h5read(embeds_file, "words")
