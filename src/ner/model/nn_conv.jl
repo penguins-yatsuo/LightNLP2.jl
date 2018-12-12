@@ -12,10 +12,10 @@ struct ConvNet
     win_c::Int
     win_w::Int
     droprate::Float64
-    L::Dict
+    L::Dict{String, Any}
 end
 
-function ConvNet(args::Dict)
+function ConvNet(args::Dict, embeds_w::Matrix{T}, embeds_c::Matrix{T}) where T
     ntags = get!(args, "ntags", 128)
     win_c = get!(args, "winsize_c", 2)
     win_w = get!(args, "winsize_w", 5)
@@ -23,7 +23,12 @@ function ConvNet(args::Dict)
     hidden_dims = map(s -> tryparse(Int, s), split(get!(args, "hidden_dims", "128:128"), ":"))
     filter!(x -> !isa(x, Nothing), hidden_dims)
 
-    ConvNet(hidden_dims, ntags, win_c, win_w, droprate, Dict())
+    L = Dict{String, Any}(
+        "c_embed" => Embedding(embeds_c; trainable=true),
+        "w_embed" => Embedding(embeds_w; trainable=true),
+    )
+
+    ConvNet(hidden_dims, ntags, win_c, win_w, droprate, L)
 end
 
 function Base.string(net::ConvNet)
@@ -33,17 +38,17 @@ end
 
 Merlin.todevice!(net::ConvNet, device::Int) = Merlin.todevice!(net.L, device)
 
-function (net::ConvNet)(::Type{T}, embeds_w::Matrix{T}, embeds_c::Matrix{T}, x::Sample) where T
+function init_output!(net::ConvNet)
+    delete!(net.L, "fc")
+end
+
+function (net::ConvNet)(::Type{T}, x::Sample) where T
     c = @device Var(x.c)
     w = @device Var(x.w)
 
     # embeddings
-    c_embed = get!(net.L, "c_embed") do
-        @device Embedding(embeds_c)
-    end
-    w_embed = get!(net.L, "w_embed") do 
-        @device Embedding(embeds_w)
-    end
+    c_embed = net.L["c_embed"]
+    w_embed = net.L["w_embed"]
     c = c_embed(c)
     w = w_embed(w)
 

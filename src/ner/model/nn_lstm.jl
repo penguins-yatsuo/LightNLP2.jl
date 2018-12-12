@@ -11,10 +11,10 @@ struct LstmNet
     win_c::Int
     droprate::Float64
     bidir::Bool
-    L::Dict
+    L::Dict{String, Any}
 end
 
-function LstmNet(args::Dict)
+function LstmNet(args::Dict, embeds_w::Matrix{T}, embeds_c::Matrix{T}) where T
     ntags = get!(args, "ntags", 128)
     win_c = get!(args, "winsize_c", 2)
     droprate = get!(args, "droprate", 0.1)
@@ -22,7 +22,12 @@ function LstmNet(args::Dict)
     hidden_dims = map(s -> tryparse(Int, s), split(get!(args, "hidden_dims", "128:128"), ":"))
     filter!(x -> !isa(x, Nothing), hidden_dims)
 
-    LstmNet(hidden_dims, ntags, win_c, droprate, bidir, Dict())
+    L = Dict{String, Any}(
+        "c_embed" => Embedding(embeds_c; trainable=true),
+        "w_embed" => Embedding(embeds_w; trainable=true),
+    )
+
+    LstmNet(hidden_dims, ntags, win_c, droprate, bidir, L)
 end
 
 function Base.string(net::LstmNet)
@@ -32,17 +37,17 @@ end
 
 Merlin.todevice!(net::LstmNet, device::Int) = Merlin.todevice!(net.L, device)
 
-function (net::LstmNet)(::Type{T}, embeds_w::Matrix{T}, embeds_c::Matrix{T}, x::Sample) where T
+function init_output!(net::LstmNet)
+    delete!(net.L, "fc")
+end
+
+function (net::LstmNet)(::Type{T}, x::Sample) where T
     c = @device Var(x.c)
     w = @device Var(x.w)
 
     # embeddings
-    c_embed = get!(net.L, "c_embed") do
-        @device Embedding(embeds_c)
-    end
-    w_embed = get!(net.L, "w_embed") do 
-        @device Embedding(embeds_w)
-    end
+    c_embed = net.L["c_embed"]
+    w_embed = net.L["w_embed"]
     c = c_embed(c)
     w = w_embed(w)
 

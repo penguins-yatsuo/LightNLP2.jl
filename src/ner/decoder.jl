@@ -9,9 +9,7 @@ using Merlin.CUDA: getdevice, synchronize
 
 mutable struct Decoder
     words::Vector{String}
-    wordvecs::Matrix{Float32}
     chars::Vector{Char}
-    charvecs::Matrix{Float32}
     tags::Vector{String}
     net
 end
@@ -20,15 +18,11 @@ function Decoder(fname::String="")
     if isfile(fname)
         load(fname)
     else
-        Decoder(String[], Array{Float32, 2}(undef, 0, 0), Char[], Array{Float32, 2}(undef, 0, 0), String[], nothing)
+        Decoder(String[], Char[], String[], nothing)
     end
 end
 
-function save(m::Decoder, fname::String; compact::Bool=true)
-    if compact
-        m.wordvecs = Array{Float32, 2}(undef, 0, 0)
-        m.charvecs = Array{Float32, 2}(undef, 0, 0)
-    end
+function save(m::Decoder, fname::String)
     jldopen(fname, "w") do file
         wsession = JLDWriteSession()
         write(file, "decoder", m, wsession)
@@ -45,8 +39,8 @@ function prepare_train!(m::Decoder, args::Dict)
 
     if args["init_model"]
         m.tags = split(args["tags"], ":")
-        m.words, m.wordvecs = LightNLP2.read_wordvecs(args["wordvec_file"])
-        m.chars, m.charvecs = LightNLP2.create_charvecs(m.words, csize=20)
+        m.words = LightNLP2.embed_words(args["wordvec_file"])
+        m.chars = LightNLP2.embed_chars(m.words)
         m.net = nothing
     else
         # NOOP
@@ -57,6 +51,10 @@ end
 
 function train!(m::Decoder, args::Dict, iolog=stderr)
     procname = Formatting.format("NER[{1}]", get!(args, "jobid", "-"))
+
+    # vectors
+    m.words, wordvecs = embed_wordvecs!(m.words, args["wordvec_file"])
+    m.chars, charvecs = embed_charvecs!(m.chars, csize=20)
 
     # read samples
     train_samples = load_samples(args["train_file"], m.words, m.chars, m.tags)
@@ -73,8 +71,8 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     # create neural network
     if m.net == nothing
         m.net = begin
-            lowercase(args["neural_network"]) == "conv" ? ConvNet(args) :
-            lowercase(args["neural_network"]) == "lstm" ? LstmNet(args) : nothing
+            lowercase(args["neural_network"]) == "conv" ? ConvNet(args, wordvecs, charvecs) :
+            lowercase(args["neural_network"]) == "lstm" ? LstmNet(args, wordvecs, charvecs) : nothing
         end
     end
 
@@ -115,7 +113,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
 
         loss::Float64 = 0
         for (i, s) in enumerate(train_iter)
-            z = m.net(Float32, m.wordvecs, m.charvecs, s)
+            z = m.net(Float32, s)
             params = gradient!(z)
             foreach(opt, filter(x -> isparam(x), params))
             loss += sum(@host(z).data) / length(s)
@@ -131,7 +129,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
         preds = Int[]
         golds = Int[]
         for (i, s) in enumerate(test_iter)
-            z = @host m.net(Float32, m.wordvecs, m.charvecs, s)
+            z = @host m.net(Float32, s)
             append!(preds, argmax(z))
             append!(golds, s.t)
             synchronize()
@@ -182,7 +180,7 @@ function decode(m::Decoder, args::Dict, iolog=stderr)
     preds = Array{Int, 2}(undef, 1, 0)
     probs = Array{Float32, 2}(undef, length(m.tags), 0)
     for (i, s) in enumerate(pred_iter)
-        z = @host m.net(Float32, m.wordvecs, m.charvecs, s)
+        z = @host m.net(Float32, s)
         preds = hcat(preds, reshape(argmax(z), 1, :))
         probs = hcat(probs, z.data)
         ProgressMeter.next!(progress)
