@@ -145,7 +145,6 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
         end
 
         # evaluation of this epochs
-        println(m.tags)
         span_golds = span_decode(golds, m.tags)
         span_preds = span_decode(preds, m.tags)
         
