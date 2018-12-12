@@ -49,7 +49,7 @@ function prepare_train!(m::Decoder, args::Dict)
             @info "Tags changed. Initialize output layer."
             m.tags = tags
             if typeof(m.net) in [ConvNet, LstmNet]
-                init_output!(m.net)
+                init_output!(m.net, length(m.tags))
             end
         end
 
@@ -80,8 +80,8 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
     # create neural network
     if m.net == nothing
         m.net = begin
-            lowercase(args["neural_network"]) == "conv" ? ConvNet(args, wordvecs, charvecs) :
-            lowercase(args["neural_network"]) == "lstm" ? LstmNet(args, wordvecs, charvecs) : nothing
+            lowercase(args["neural_network"]) == "conv" ? ConvNet(args, wordvecs, charvecs, ntags) :
+            lowercase(args["neural_network"]) == "lstm" ? LstmNet(args, wordvecs, charvecs, ntags) : nothing
         end
     end
 
@@ -145,6 +145,7 @@ function train!(m::Decoder, args::Dict, iolog=stderr)
         end
 
         # evaluation of this epochs
+        println(m.tags)
         span_golds = span_decode(golds, m.tags)
         span_preds = span_decode(preds, m.tags)
         

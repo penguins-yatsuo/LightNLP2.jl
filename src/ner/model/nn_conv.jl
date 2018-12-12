@@ -7,16 +7,15 @@ using Merlin: Linear, Conv1d
 using Merlin.CUDA: getdevice
 
 struct ConvNet
-    hidden_dims::Vector{Int}
-    ntags::Int
     win_c::Int
     win_w::Int
     droprate::Float64
+    hidden_dims::Vector{Int}
+    out_dim::Int
     L::Dict{String, Any}
 end
 
-function ConvNet(args::Dict, embeds_w::Matrix{T}, embeds_c::Matrix{T}) where T
-    ntags = get!(args, "ntags", 128)
+function ConvNet(args::Dict, embeds_w::Matrix{T}, embeds_c::Matrix{T}, out_dim::Int) where T
     win_c = get!(args, "winsize_c", 2)
     win_w = get!(args, "winsize_w", 5)
     droprate = get!(args, "droprate", 0.1)
@@ -28,17 +27,18 @@ function ConvNet(args::Dict, embeds_w::Matrix{T}, embeds_c::Matrix{T}) where T
         "w_embed" => Embedding(embeds_w; trainable=true),
     )
 
-    ConvNet(hidden_dims, ntags, win_c, win_w, droprate, L)
+    ConvNet(win_c, win_w, droprate, hidden_dims, out_dim, L)
 end
 
 function Base.string(net::ConvNet)
-    Formatting.format("Conv <hidden_dims:{1}, ntags:{2} winsize_c:{3} winsize_w:{4} droprate:{5:.2f}>",
-        string(net.hidden_dims), net.ntags, net.win_c, net.win_w, net.droprate)
+    Formatting.format("Conv <hidden_dims:{1}, winsize_c:{2} winsize_w:{3} droprate:{4:.2f}>",
+        string(net.hidden_dims), net.win_c, net.win_w, net.droprate)
 end
 
 Merlin.todevice!(net::ConvNet, device::Int) = Merlin.todevice!(net.L, device)
 
-function init_output!(net::ConvNet)
+function init_output!(net::ConvNet, out_dim::Int)
+    net.out_dim = out_dim
     delete!(net.L, "fc")
 end
 
@@ -71,7 +71,7 @@ function (net::ConvNet)(::Type{T}, x::Sample) where T
 
     # full connect
     fc = get!(net.L, "fc") do
-        @device Linear(T, vsize(h), net.ntags)
+        @device Linear(T, vsize(h), net.out_dim)
     end    
     o = relu(fc(h))
 

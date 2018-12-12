@@ -6,16 +6,15 @@ using Merlin: lookup, max, concat, relu, softmax, softmax_crossentropy
 using Merlin: Linear, Conv1d, LSTM
 
 struct LstmNet
-    hidden_dims::Vector{Int}
-    ntags::Int
     win_c::Int
-    droprate::Float64
     bidir::Bool
+    droprate::Float64
+    hidden_dims::Vector{Int}
+    out_dim::Int
     L::Dict{String, Any}
 end
 
-function LstmNet(args::Dict, embeds_w::Matrix{T}, embeds_c::Matrix{T}) where T
-    ntags = get!(args, "ntags", 128)
+function LstmNet(args::Dict, embeds_w::Matrix{T}, embeds_c::Matrix{T}, out_dim::Int) where T
     win_c = get!(args, "winsize_c", 2)
     droprate = get!(args, "droprate", 0.1)
     bidir = get!(args, "bidirectional", true)
@@ -27,17 +26,18 @@ function LstmNet(args::Dict, embeds_w::Matrix{T}, embeds_c::Matrix{T}) where T
         "w_embed" => Embedding(embeds_w; trainable=true),
     )
 
-    LstmNet(hidden_dims, ntags, win_c, droprate, bidir, L)
+    LstmNet(win_c, bidir, droprate, hidden_dims, out_dim, L)
 end
 
 function Base.string(net::LstmNet)
-    Formatting.format("LSTM <hidden_dims:{1} ntags:{2} winsize_c:{3} droprate:{4:.2f} bidirectional:{5}>",
-        string(net.hidden_dims), net.ntags, net.win_c, net.droprate, string(net.bidir))
+    Formatting.format("LSTM <hidden_dims:{1} winsize_c:{2} droprate:{3:.2f} bidirectional:{4}>",
+        string(net.hidden_dims), net.win_c, net.droprate, string(net.bidir))
 end
 
 Merlin.todevice!(net::LstmNet, device::Int) = Merlin.todevice!(net.L, device)
 
-function init_output!(net::LstmNet)
+function init_output!(net::LstmNet, out_dim::Int)
+    net.out_dim = out_dim
     delete!(net.L, "fc")
 end
 
@@ -72,7 +72,7 @@ function (net::LstmNet)(::Type{T}, x::Sample) where T
 
     # full connect
     fc = get!(net.L, "fc") do
-        @device Linear(T, vsize(h), net.ntags)
+        @device Linear(T, vsize(h), net.out_dim)
     end    
     o = relu(fc(h))
 
