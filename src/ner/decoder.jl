@@ -48,7 +48,7 @@ function prepare_train!(m::Decoder, args::Dict)
         if m.tags != tags
             @info "Tags changed. Initialize output layer."
             m.tags = tags
-            if type(m.net) in [ConvNet, LstmNet]
+            if typeof(m.net) in [ConvNet, LstmNet]
                 init_output!(m.net)
             end
         end
