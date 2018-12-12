@@ -6,7 +6,7 @@ using Merlin: lookup, max, concat, dropout, relu, softmax, softmax_crossentropy
 using Merlin: Linear, Conv1d
 using Merlin.CUDA: getdevice
 
-struct ConvNet
+mutable struct ConvNet
     win_c::Int
     win_w::Int
     droprate::Float64

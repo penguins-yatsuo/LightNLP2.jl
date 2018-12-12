@@ -5,7 +5,7 @@ using Merlin: istrain, todevice!, parameter, Var, data
 using Merlin: lookup, max, concat, relu, softmax, softmax_crossentropy
 using Merlin: Linear, Conv1d, LSTM
 
-struct LstmNet
+mutable struct LstmNet
     win_c::Int
     bidir::Bool
     droprate::Float64
